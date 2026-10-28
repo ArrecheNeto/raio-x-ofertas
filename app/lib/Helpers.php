@@ -139,9 +139,31 @@ function selo(string $status): string
     return '<span class="selo selo-' . e($status ?: 'coletando') . '">' . e($rot) . '</span>';
 }
 
+/** Icones de linha da barra lateral (SVG inline, sem dependencia). */
+function icone(string $nome): string
+{
+    $d = [
+        'ofertas' => '<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>',
+        'concorrentes' => '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+        'admin' => '<path d="M4 6h16M4 12h10M4 18h16"/><circle cx="17" cy="12" r="2"/>',
+        'saude' => '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+        'entrar' => '<path d="M10 17l5-5-5-5M15 12H3M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/>',
+    ][$nome] ?? '';
+    return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' . $d . '</svg>';
+}
+
 function layout_topo(string $titulo, string $ativo = 'ofertas'): void
 {
     $admin = admin_logado();
+    try {
+        $navNichos = Db::all('SELECT id, nome FROM nichos WHERE ativo = 1 ORDER BY nome');
+        $ultima = Db::getConfig('ultima_atualizacao');
+    } catch (Throwable $e) {
+        $navNichos = [];
+        $ultima = null;
+    }
+    $nichoAtual = $ativo === 'ofertas' ? (int)($_GET['nicho'] ?? 0) : -1;
+    $item = fn(string $chave, string $href, string $rotulo) => '<a href="' . $href . '" title="' . e($rotulo) . '" aria-label="' . e($rotulo) . '" class="nav-item' . ($ativo === $chave ? ' on' : '') . '">' . icone($chave) . '<span>' . e($rotulo) . '</span></a>';
     ?><!doctype html>
 <html lang="pt-BR">
 <head>
@@ -149,25 +171,41 @@ function layout_topo(string $titulo, string $ativo = 'ofertas'): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($titulo) ?></title>
 <meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0e0f11">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=4">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=5">
 </head>
 <body>
-<header class="topo">
-  <div class="wrap topo-in">
-    <a class="marca" href="index.php"><span class="marca-ic" aria-hidden="true"></span>Raio-X <b>de Ofertas</b></a>
-    <nav class="menu">
-      <a href="index.php" class="<?= $ativo === 'ofertas' ? 'on' : '' ?>">Ofertas</a>
-      <?php if ($admin): ?>
-        <a href="concorrentes.php" class="<?= $ativo === 'concorrentes' ? 'on' : '' ?>">Concorrentes</a>
-        <a href="admin.php" class="<?= $ativo === 'admin' ? 'on' : '' ?>">Painel</a>
-        <a href="saude.php" class="<?= $ativo === 'saude' ? 'on' : '' ?>">Saúde</a>
-      <?php endif; ?>
-    </nav>
+<div class="app">
+<aside class="lateral">
+  <a class="marca" href="index.php"><span class="marca-ic" aria-hidden="true">RX</span><span class="marca-txt">Raio-X<small>de Ofertas</small></span></a>
+  <nav class="nav" aria-label="Menu principal">
+    <p class="nav-titulo">Explorar</p>
+    <?= $item('ofertas', 'index.php', 'Ofertas') ?>
+    <?php if ($navNichos): ?>
+    <div class="nav-sub">
+      <?php foreach ($navNichos as $n): ?>
+        <a href="index.php?nicho=<?= (int)$n['id'] ?>" class="<?= $nichoAtual === (int)$n['id'] ? 'on' : '' ?>"><?= e(mb_convert_case($n['nome'], MB_CASE_TITLE)) ?></a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <?php if ($admin): ?>
+      <p class="nav-titulo">Gestão</p>
+      <?= $item('concorrentes', 'concorrentes.php', 'Concorrentes') ?>
+      <?= $item('admin', 'admin.php', 'Painel') ?>
+      <?= $item('saude', 'saude.php', 'Saúde') ?>
+    <?php else: ?>
+      <?= str_replace('nav-item', 'nav-item nav-entrar', $item('entrar', 'admin.php', 'Entrar')) ?>
+    <?php endif; ?>
+  </nav>
+  <div class="lateral-pe">
+    <span>Atualizado</span>
+    <b><?= $ultima ? e(data_br($ultima, true)) : 'ainda não' ?></b>
   </div>
-</header>
+</aside>
+<div class="conteudo">
 <main class="wrap">
 <?php
 }
@@ -180,7 +218,9 @@ function layout_rodape(): void
   <p>Dias no ar e número de anúncios são sinais de escala, não comprovação de vendas.</p>
   <p class="mut">Dados de anúncios públicos da Biblioteca de Anúncios da Meta, via AIsa. Use para estudar e criar a sua própria versão, nunca para copiar.</p>
 </footer>
-<script src="assets/app.js?v=3"></script>
+</div>
+</div>
+<script src="assets/app.js?v=4"></script>
 </body>
 </html>
 <?php

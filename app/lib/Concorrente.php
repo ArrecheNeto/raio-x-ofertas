@@ -157,6 +157,10 @@ final class Concorrente
             return ['ok' => true, 'pulado' => 'concorrente removido, pausado ou sem marca'];
         }
         $limite = max(1, min(250, Config::int('CONCORRENTE_ADS', 20)));
+        // Uma coleta paga por concorrente por dia, mesmo que a tarefa entre na fila de novo.
+        if (substr((string)$c['ultima_coleta'], 0, 10) === date('Y-m-d')) {
+            return ['ok' => true, 'pulado' => 'ja coletado hoje'];
+        }
         if (!Custos::cabe((int)round($limite * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000))) {
             return ['ok' => false, 'teto' => true, 'erro' => 'Teto diario atingido antes da coleta do concorrente "' . $c['nome'] . '".'];
         }
