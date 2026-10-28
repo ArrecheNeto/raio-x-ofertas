@@ -4,8 +4,57 @@ require __DIR__ . '/_app.php';
 
 iniciar_sessao();
 $msg = null;
+$msgErro = false;
 $erroLogin = null;
 $resultado = null;
+
+// Primeira configuração: só existe enquanto nenhuma senha de painel foi definida.
+if (precisa_instalar()) {
+    $erroInst = null;
+    if (($_POST['acao'] ?? '') === 'instalar') {
+        $chave = trim((string)($_POST['chave'] ?? ''));
+        $senha = (string)($_POST['senha'] ?? '');
+        $teto = str_replace(',', '.', trim((string)($_POST['teto'] ?? '2.00')));
+        if (!csrf_ok()) {
+            $erroInst = 'Sessão expirada. Tente de novo.';
+        } elseif (mb_strlen($senha) < 8) {
+            $erroInst = 'Use uma senha de pelo menos 8 caracteres.';
+        } elseif ($senha !== (string)($_POST['senha2'] ?? '')) {
+            $erroInst = 'As duas senhas não são iguais.';
+        } elseif (!is_numeric($teto) || (float)$teto <= 0 || (float)$teto > 100) {
+            $erroInst = 'Teto diário inválido. Use um valor como 2.50.';
+        } else {
+            $erroInst = testar_chave($chave)
+                ?? Config::salvar(APP_DIR . '/.env', ['AISA_API_KEY' => $chave, 'ADMIN_PASSWORD' => $senha, 'DAILY_BUDGET_USD' => number_format((float)$teto, 2, '.', '')]);
+        }
+        if ($erroInst === null) {
+            session_regenerate_id(true);
+            $_SESSION['admin'] = true;
+            header('Location: admin.php?bemvindo=1');
+            exit;
+        }
+    }
+    layout_topo('Primeira configuração', 'admin');
+    ?>
+    <section class="login painel">
+      <h1>Primeira configuração</h1>
+      <p class="mut">Cole sua chave da AIsa e crie a senha do painel. A chave é testada antes de salvar e fica guardada no servidor, fora da pasta pública. Ela nunca aparece de novo na tela.</p>
+      <?php if ($erroInst): ?><p class="alerta"><?= e($erroInst) ?></p><?php endif; ?>
+      <form method="post" class="form-pilha">
+        <input type="hidden" name="acao" value="instalar">
+        <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+        <label>Chave da AIsa<input type="password" name="chave" required autocomplete="off" placeholder="Console da AIsa > API Keys"></label>
+        <label>Senha do painel<input type="password" name="senha" required minlength="8" autocomplete="new-password"></label>
+        <label>Repita a senha<input type="password" name="senha2" required minlength="8" autocomplete="new-password"></label>
+        <label>Teto de gasto por dia (US$)<input name="teto" value="2.50" inputmode="decimal" required></label>
+        <button class="btn btn-pri">Salvar e entrar</button>
+      </form>
+      <p class="mut small">Faça isso logo depois de subir os arquivos: enquanto não houver senha, qualquer pessoa que abrir esta página pode configurar.</p>
+    </section>
+    <?php
+    layout_rodape();
+    exit;
+}
 
 if (($_POST['acao'] ?? '') === 'login') {
     $erroLogin = tentar_login();
@@ -95,6 +144,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Db::q('DELETE FROM concorrentes WHERE id = ?', [(int)$_POST['id']]);
                 $msg = 'Concorrente removido. Os anúncios já coletados continuam no banco.';
                 break;
+            case 'config_salvar':
+                $novos = [];
+                $erroCfg = null;
+                $chave = trim((string)($_POST['chave'] ?? ''));
+                if ($chave !== '') {
+                    $erroCfg = testar_chave($chave);
+                    $novos['AISA_API_KEY'] = $chave;
+                }
+                $numeros = ['DAILY_BUDGET_USD' => [0.01, 100], 'ADS_PER_NICHE' => [1, 250], 'ANALYTICS_TOP' => [0, 100], 'RAIOX_POR_DIA' => [0, 500]];
+                foreach ($numeros as $k => [$min, $max]) {
+                    $v = str_replace(',', '.', trim((string)($_POST[$k] ?? '')));
+                    if (!is_numeric($v) || (float)$v < $min || (float)$v > $max) {
+                        $erroCfg ??= "Valor inválido em $k (de $min a $max).";
+                    } else {
+                        $novos[$k] = $k === 'DAILY_BUDGET_USD' ? number_format((float)$v, 2, '.', '') : (string)(int)$v;
+                    }
+                }
+                $novaSenha = (string)($_POST['senha_nova'] ?? '');
+                if ($novaSenha !== '') {
+                    if (!hash_equals(Config::str('ADMIN_PASSWORD'), (string)($_POST['senha_atual'] ?? ''))) {
+                        $erroCfg ??= 'A senha atual não confere. Nada foi salvo.';
+                    } elseif (mb_strlen($novaSenha) < 8) {
+                        $erroCfg ??= 'A senha nova precisa de pelo menos 8 caracteres.';
+                    } else {
+                        $novos['ADMIN_PASSWORD'] = $novaSenha;
+                    }
+                }
+                $erroCfg ??= Config::salvar(APP_DIR . '/.env', $novos);
+                $msg = $erroCfg ?? 'Configurações salvas.';
+                $msgErro = $erroCfg !== null;
+                break;
             case 'limpar_erros':
                 Db::q('DELETE FROM erros');
                 $msg = 'Erros apagados.';
@@ -126,8 +206,9 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
   <h1>Painel</h1>
   <form method="post"><input type="hidden" name="csrf" value="<?= e(csrf()) ?>"><button class="btn" name="acao" value="sair">Sair</button></form>
 </div>
-<?php if (!Aisa::temChave()): ?><p class="alerta">AISA_API_KEY está vazia no .env. O robô não roda sem ela.</p><?php endif; ?>
-<?php if ($msg): ?><p class="aviso"><?= e($msg) ?></p><?php endif; ?>
+<?php if (!Aisa::temChave()): ?><p class="alerta">Nenhuma chave da AIsa salva. Cole a sua em <a href="#config">Configurações</a>, no fim da página.</p><?php endif; ?>
+<?php if (!empty($_GET['bemvindo'])): ?><p class="aviso">Tudo salvo. Agora crie a Tarefa Cron (veja a página Saúde) ou clique em Rodar agora para a primeira coleta.</p><?php endif; ?>
+<?php if ($msg): ?><p class="<?= $msgErro ? 'alerta' : 'aviso' ?>"><?= e($msg) ?></p><?php endif; ?>
 <?php if (Db::getConfig('teto_' . $hoje)): ?><p class="alerta">O teto diário foi atingido hoje às <?= e(Db::getConfig('teto_' . $hoje)) ?>. O robô parou e volta amanhã.</p><?php endif; ?>
 
 <section class="kpis-adm">
@@ -300,5 +381,22 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
     <button class="btn btn-pri" name="acao" value="conc_dominio">Adicionar concorrente</button>
   </form>
   <p class="mut small">Cada concorrente custa cerca de <?= e(Custos::usd((int)round(Config::int('CONCORRENTE_ADS', 20) * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000), 3)) ?> por dia (<?= Config::int('CONCORRENTE_ADS', 20) ?> anúncios), mais 1 dia de contagem de ativos. Achar a marca pelo domínio custa até <?= e(Custos::usd((int)round(Config::int('CONCORRENTE_CANDIDATOS', 3) * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000), 3)) ?>, uma vez só. Máximo de <?= Config::int('MAX_CONCORRENTES', 10) ?> concorrentes.</p>
+</section>
+<section class="painel" id="config">
+  <h2>Configurações</h2>
+  <p class="mut">Ficam guardadas no arquivo .env do servidor, fora da pasta pública.</p>
+  <form method="post" class="form-grade">
+    <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+    <label class="largo">Chave da AIsa <span class="mut small">(<?= e(chave_mascarada()) ?>)</span>
+      <input type="password" name="chave" autocomplete="off" placeholder="Deixe vazio para manter a atual"></label>
+    <label>Teto por dia (US$)<input name="DAILY_BUDGET_USD" value="<?= e(Config::str('DAILY_BUDGET_USD', '2.00')) ?>" inputmode="decimal" required></label>
+    <label>Anúncios por nicho<input type="number" name="ADS_PER_NICHE" value="<?= Config::int('ADS_PER_NICHE', 20) ?>" min="1" max="250" required></label>
+    <label>Anunciantes com contagem real<input type="number" name="ANALYTICS_TOP" value="<?= Config::int('ANALYTICS_TOP', 20) ?>" min="0" max="100" required></label>
+    <label>Raio-X por dia<input type="number" name="RAIOX_POR_DIA" value="<?= Config::int('RAIOX_POR_DIA', 30) ?>" min="0" max="500" required></label>
+    <label>Senha atual <span class="mut small">(só para trocar a senha)</span><input type="password" name="senha_atual" autocomplete="current-password"></label>
+    <label>Senha nova<input type="password" name="senha_nova" minlength="8" autocomplete="new-password"></label>
+    <div class="largo"><button class="btn btn-pri" name="acao" value="config_salvar">Salvar configurações</button>
+      <span class="mut small">Uma chave nova é testada na AIsa antes de salvar.</span></div>
+  </form>
 </section>
 <?php layout_rodape();

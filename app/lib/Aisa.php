@@ -48,10 +48,10 @@ final class Aisa
         return self::chamarPago('raiox', 'POST', '/v1/chat/completions', [], $corpo, $ref, 0);
     }
 
-    /** Checagem de conta (gratis). */
-    public static function saldo(): array
+    /** Checagem de conta (gratis). Com $chave, testa uma chave nova antes de salvar. */
+    public static function saldo(?string $chave = null): array
     {
-        return self::http('GET', '/v1/credits/balance', [], null, [], 15);
+        return self::http('GET', '/v1/credits/balance', [], null, [], 15, $chave);
     }
 
     private static function chamarPago(string $tipo, string $metodo, string $caminho, array $query, ?array $corpo, string $ref, int $itensEsperados): array
@@ -87,14 +87,14 @@ final class Aisa
         return $r;
     }
 
-    private static function http(string $metodo, string $caminho, array $query, ?array $corpo, array $extra, int $timeout): array
+    private static function http(string $metodo, string $caminho, array $query, ?array $corpo, array $extra, int $timeout, ?string $chave = null): array
     {
         $url = self::BASE . $caminho;
         if ($query) {
             $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         }
         $headers = array_merge([
-            'Authorization: Bearer ' . Config::str('AISA_API_KEY'),
+            'Authorization: Bearer ' . ($chave ?? Config::str('AISA_API_KEY')),
             'Accept: application/json',
         ], $extra);
         if ($corpo !== null) {

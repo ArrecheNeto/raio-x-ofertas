@@ -84,23 +84,13 @@ Isso cria `dist/raio-x-ofertas-hostgator.zip` com duas pastas:
 
 > Para ver o `.htaccess` no Gerenciador de Arquivos, clique em **Configurações** e marque **Mostrar arquivos ocultos**.
 
-### 3.3 Criar o .env
-
-1. Dentro de `/home/SEU_USUARIO/raiox_app`, copie o arquivo `.env.example` e renomeie a cópia para **`.env`**.
-2. Clique em **Editar** e preencha:
-   - `AISA_API_KEY=` a chave do passo 1.
-   - `ADMIN_PASSWORD=` uma senha forte para o painel.
-   - `DAILY_BUDGET_USD=` o teto por dia (ex.: `2.50`).
-   - `NICHOS=` os nichos iniciais separados por vírgula. Depois você edita no painel.
-3. Salve.
-
-### 3.4 Versão do PHP
+### 3.3 Versão do PHP
 
 1. No cPanel, abra **Selecionar versão do PHP** (ou **MultiPHP Manager**).
 2. Escolha **PHP 8.1 ou mais novo** para o domínio ou subdomínio.
 3. Se houver a aba **Extensões**, confirme que estão marcadas: `curl`, `pdo_sqlite`, `sqlite3`, `mbstring`, `zip`.
 
-### 3.5 Permissões
+### 3.4 Permissões
 
 No Gerenciador de Arquivos (botão direito > **Alterar permissões**):
 
@@ -108,6 +98,23 @@ No Gerenciador de Arquivos (botão direito > **Alterar permissões**):
 - Arquivos: **644**.
 - O `.env`: **600** (só o seu usuário lê).
 - A pasta `raiox_app/data` precisa de gravação: **755** basta na HostGator.
+
+### 3.5 Colocar a chave e criar a senha (pelo navegador)
+
+1. Abra `https://seudominio.com.br/admin.php`.
+2. Na primeira vez aparece a tela **Primeira configuração**. Preencha:
+   - **Chave da AIsa:** a chave do passo 1. Ela é testada na hora, de graça, antes de salvar.
+   - **Senha do painel:** pelo menos 8 caracteres.
+   - **Teto de gasto por dia:** por exemplo `2.50`.
+3. Clique em **Salvar e entrar**.
+
+O robô grava tudo no arquivo `raiox_app/.env`, fora da pasta pública. A chave nunca mais aparece na tela, só os 4 últimos caracteres para você saber qual está salva.
+
+> Faça isso logo depois de subir os arquivos. Enquanto não existe senha, qualquer pessoa que abrir o `/admin.php` consegue fazer a primeira configuração.
+
+Para trocar a chave, a senha ou o teto depois, use **Configurações**, no fim do painel.
+
+**Se aparecer "Não consegui gravar o arquivo .env":** a pasta `raiox_app` está sem permissão de escrita. Ajuste para 755. Ou crie o `.env` na mão: copie o `.env.example`, renomeie para `.env` e preencha `AISA_API_KEY`, `ADMIN_PASSWORD` e `DAILY_BUDGET_USD`.
 
 ### 3.6 Se o SQLite não estiver disponível
 
@@ -144,7 +151,7 @@ Isso roda de 15 em 15 minutos entre 6h e 9h45. Com 5 nichos, a coleta termina po
 
 ## 5. Testar pela /saude.php
 
-1. Abra `https://seudominio.com.br/admin.php` e entre com a `ADMIN_PASSWORD`.
+1. Entre no painel com a senha que você criou.
 2. Abra `https://seudominio.com.br/saude.php`.
 3. Tudo precisa estar verde: versão do PHP, cURL, SQLite, gravação em disco, banco, chave e **conexão com a AIsa** (mostra o seu saldo; essa checagem é grátis).
 4. Volte ao **Painel** e clique em **Rodar agora** para fazer a primeira coleta sem esperar o cron. Cada clique trabalha 25 segundos; clique até a fila do dia acabar.
@@ -155,6 +162,7 @@ Isso roda de 15 em 15 minutos entre 6h e 9h45. Com 5 nichos, a coleta termina po
 - **Gasto hoje e no mês:** soma do custo real que a AIsa devolve em cada chamada (header `X-AISA-Customer-Cost-Micros-USD`).
 - **Rodar agora:** continua a fila do dia.
 - **Fila de hoje:** o que já rodou, o que falta e o que deu erro. Tarefas com erro **não** são repetidas sozinhas; use **Tentar de novo**.
+- **Configurações:** trocar a chave da AIsa, a senha, o teto diário e quantos anúncios buscar.
 - **Nichos:** adicionar, renomear, trocar o termo de busca, pausar ou remover.
 - **Concorrentes:** acompanhar anunciantes específicos. Veja o Modo Concorrente abaixo.
 - **Erros recentes e execuções:** quanto tempo cada rodada levou.

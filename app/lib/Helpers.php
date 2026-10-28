@@ -62,6 +62,33 @@ function csrf_ok(): bool
     return isset($_POST['csrf'], $_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string)$_POST['csrf']);
 }
 
+/** Sem senha de painel definida, o admin.php mostra a primeira configuração no lugar do login. */
+function precisa_instalar(): bool
+{
+    $senha = Config::str('ADMIN_PASSWORD');
+    return $senha === '' || $senha === 'troque-esta-senha';
+}
+
+/** Confere uma chave na rota gratuita de saldo. Retorna mensagem de erro ou null. */
+function testar_chave(string $chave): ?string
+{
+    if (!preg_match('/^[\x21-\x7E]{16,200}$/', $chave)) {
+        return 'A chave parece incompleta. Copie de novo no console da AIsa.';
+    }
+    $r = Aisa::saldo($chave);
+    if ($r['ok']) {
+        return null;
+    }
+    return $r['http'] === 401 ? 'A AIsa recusou esta chave (401). Confira se copiou inteira.' : (string)$r['erro'];
+}
+
+/** Só os 4 últimos caracteres, para reconhecer qual chave está salva sem expor. */
+function chave_mascarada(): string
+{
+    $k = Config::str('AISA_API_KEY');
+    return $k === '' ? 'nenhuma chave salva' : 'salva, termina em ' . substr($k, -4);
+}
+
 /** Tenta logar. Retorna mensagem de erro ou null. */
 function tentar_login(): ?string
 {
@@ -125,7 +152,7 @@ function layout_topo(string $titulo, string $ativo = 'ofertas'): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=3">
+<link rel="stylesheet" href="assets/style.css?v=4">
 </head>
 <body>
 <header class="topo">

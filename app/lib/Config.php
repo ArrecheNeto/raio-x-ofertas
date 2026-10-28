@@ -25,6 +25,38 @@ final class Config
         }
     }
 
+    /**
+     * Grava chaves no .env (cria a partir do .env.example se faltar), mantendo comentarios e a ordem.
+     * Retorna mensagem de erro ou null.
+     */
+    public static function salvar(string $arquivo, array $novos): ?string
+    {
+        $base = is_file($arquivo) ? $arquivo : dirname($arquivo) . '/.env.example';
+        $linhas = is_file($base) ? file($base, FILE_IGNORE_NEW_LINES) : [];
+        foreach ($novos as $k => $v) {
+            $v = str_replace(["\r", "\n"], '', trim((string)$v));
+            $achou = false;
+            foreach ($linhas as $i => $l) {
+                if (preg_match('/^\s*' . preg_quote($k, '/') . '\s*=/', $l)) {
+                    $linhas[$i] = "$k=$v";
+                    $achou = true;
+                    break;
+                }
+            }
+            if (!$achou) {
+                $linhas[] = "$k=$v";
+            }
+            self::$vals[$k] = $v;
+        }
+        $tmp = $arquivo . '.tmp';
+        if (@file_put_contents($tmp, implode("\n", $linhas) . "\n", LOCK_EX) === false || !@rename($tmp, $arquivo)) {
+            @unlink($tmp);
+            return 'Não consegui gravar o arquivo .env em ' . dirname($arquivo) . '. Ajuste a permissão da pasta para 755.';
+        }
+        @chmod($arquivo, 0600);
+        return null;
+    }
+
     public static function str(string $k, string $padrao = ''): string
     {
         // Variavel de ambiente vence o .env (util para testes pontuais).
