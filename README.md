@@ -40,6 +40,12 @@ Para gastar menos, diminua `ADS_PER_NICHE`, o número de nichos ou `ANALYTICS_TO
 
 ---
 
+## Jeito mais fácil: a IA instala para você
+
+Tem o Claude com a extensão Claude in Chrome? Abra o [INSTALAR-COM-IA.md](INSTALAR-COM-IA.md), copie o prompt e cole. Ele sobe os arquivos no seu cPanel, junta o `.htaccess`, acerta as permissões, confere a página Saúde e cria o cron depois que você aprovar. A chave da AIsa e a senha do painel você mesmo coloca. Antes, tenha a conta na AIsa com saldo e a HostGator ativa.
+
+Prefere fazer na mão? Siga os passos abaixo.
+
 ## 1. Pegar a chave da AIsa
 
 1. Acesse **https://aisa.one** e entre na sua conta (ou crie uma).
