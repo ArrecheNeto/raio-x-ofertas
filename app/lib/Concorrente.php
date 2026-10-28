@@ -131,8 +131,10 @@ final class Concorrente
         }
         $cands = [];
         foreach ($r['json']['data'] ?? [] as $b) {
-            if (!empty($b['brand_id'])) {
-                $cands[] = ['brand_id' => (string)$b['brand_id'], 'ad_library_id' => (string)($b['ad_library_id'] ?? ''), 'nome' => (string)($b['name'] ?? '')];
+            // A doc mostra "brand_id", mas a resposta real traz o id da marca em "id".
+            $bid = (string)($b['brand_id'] ?? $b['id'] ?? '');
+            if ($bid !== '') {
+                $cands[] = ['brand_id' => $bid, 'ad_library_id' => (string)($b['ad_library_id'] ?? ''), 'nome' => (string)($b['name'] ?? '')];
             }
         }
         if (!$cands) {

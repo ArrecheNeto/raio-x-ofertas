@@ -12,7 +12,7 @@ $lista = Db::all(
     'SELECT c.*, m.nome AS marca_nome, m.avatar, m.status AS escala, m.ativos_atual, m.ativos_fonte, m.delta7, m.delta14, m.max_dias, m.tipo,
             a.thumbnail, a.imagem, a.formato,
             (SELECT COUNT(*) FROM anuncios x WHERE x.brand_id = c.brand_id AND x.live = 1) AS no_banco,
-            (SELECT COUNT(*) FROM anuncios x WHERE x.brand_id = c.brand_id AND x.primeiro_visto >= ?) AS novos7
+            (SELECT COUNT(*) FROM anuncios x WHERE x.brand_id = c.brand_id AND x.iniciou_em >= ?) AS novos7
      FROM concorrentes c
      LEFT JOIN anunciantes m ON m.brand_id = c.brand_id
      LEFT JOIN anuncios a ON a.ad_id = m.anuncio_principal
@@ -78,7 +78,7 @@ layout_topo('Concorrentes | Raio-X de Ofertas', 'concorrentes');
       <div class="metricas">
         <div><b><?= $c['ativos_atual'] !== null ? (int)$c['ativos_atual'] : '?' ?></b><span><?= $c['ativos_fonte'] === 'real' ? 'anúncios ativos' : 'anúncios vistos' ?></span></div>
         <div><b class="<?= ($c['delta7'] ?? 0) > 0 ? 'up' : (($c['delta7'] ?? 0) < 0 ? 'down' : '') ?>"><?= e(pct($c['delta7'] !== null ? (float)$c['delta7'] : null)) ?></b><span>em 7 dias</span></div>
-        <div><b><?= (int)$c['novos7'] ?></b><span>criativos novos (7 dias)</span></div>
+        <div><b><?= (int)$c['novos7'] ?></b><span>lançados nos últimos 7 dias</span></div>
       </div>
       <?= sparkline($serie['pontos'], $st) ?>
       <p class="mut small">Mais antigo no ar: <?= (int)$c['max_dias'] ?> dias · última coleta <?= e(data_br($c['ultima_coleta'], true) ?: 'ainda não') ?></p>
