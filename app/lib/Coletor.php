@@ -1,0 +1,125 @@
+<?php
+declare(strict_types=1);
+
+/** Coleta de anuncios por nicho e gravacao no banco (sem duplicados). */
+final class Coletor
+{
+    private const DOMINIOS_INFO = [
+        'hotmart', 'kiwify', 'eduzz', 'monetizze', 'ticto', 'braip', 'perfectpay', 'kirvano', 'greenn',
+        'cakto', 'lastlink', 'hubla', 'yampi', 'pepper', 'doppus', 'sun.eduzz', 'go.hotmart', 'pay.hotmart',
+        'pay.kiwify', 'memberkit', 'cademi', 'curseduca', 'herospark', 'greatpages', 'lpages',
+    ];
+    private const PALAVRAS_INFO = '/\b(curso|cursos|aula|aulas|m[eé]todo|ebook|e-book|mentoria|treinamento|masterclass|webin[aá]rio|webinar|workshop|imers[aã]o|desafio de \d+|apostila|guia completo|programa online|comunidade|forma[cç][aã]o|certificado|online course|course|coaching|digital product|info ?produto)\b/iu';
+
+    public static function coletarNicho(array $nicho): array
+    {
+        $limite = max(1, min(250, Config::int('ADS_PER_NICHE', 20)));
+        $estimativa = (int)round($limite * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000);
+        if (!Custos::cabe($estimativa)) {
+            return ['ok' => false, 'teto' => true, 'erro' => 'Teto diario atingido. Coleta do nicho "' . $nicho['nome'] . '" nao foi feita.'];
+        }
+
+        $r = Aisa::buscarAnuncios([
+            'query' => $nicho['termo'],
+            'languages' => 'pt',
+            'live' => 'true',
+            'publisher_platform' => 'facebook',
+            'order' => 'longest_running',
+            'limit' => $limite,
+        ], 'nicho:' . $nicho['id']);
+
+        if (!$r['ok']) {
+            return ['ok' => false, 'erro' => $r['erro'], 'http' => $r['http']];
+        }
+
+        $hoje = date('Y-m-d');
+        $novos = 0;
+        $vistosAgora = [];
+        foreach ($r['json']['data'] ?? [] as $ad) {
+            $adId = (string)($ad['ad_id'] ?? $ad['id'] ?? '');
+            if ($adId === '' || isset($vistosAgora[$adId])) {
+                continue; // a API as vezes repete o mesmo anuncio
+            }
+            $vistosAgora[$adId] = true;
+            $novos += self::salvarAnuncio($ad, (int)$nicho['id'], $hoje) ? 1 : 0;
+        }
+        return ['ok' => true, 'recebidos' => count($r['json']['data'] ?? []), 'unicos' => count($vistosAgora), 'novos' => $novos, 'micros' => $r['micros']];
+    }
+
+    /** Retorna true se o anuncio e novo no banco. */
+    public static function salvarAnuncio(array $ad, int $nichoId, string $hoje): bool
+    {
+        $adId = (string)($ad['ad_id'] ?? $ad['id']);
+        $brandId = (string)($ad['brand_id'] ?? ('sem-marca-' . $adId));
+        $link = (string)($ad['link_url'] ?? '');
+        $dominio = strtolower((string)(parse_url($link, PHP_URL_HOST) ?? ''));
+        $transcricao = (string)($ad['full_transcription'] ?? '');
+        $descricao = (string)($ad['description'] ?? '');
+        $headline = (string)($ad['headline'] ?? '');
+        $tipo = self::classificar($dominio, $link, $descricao . ' ' . $headline . ' ' . $transcricao, (string)($ad['product_category'] ?? ''));
+        $iniciou = isset($ad['started_running']) ? date('Y-m-d', (int)($ad['started_running'] / 1000)) : null;
+        $dias = (int)($ad['running_duration']['days'] ?? 0);
+
+        $existe = Db::one('SELECT ad_id, primeiro_visto FROM anuncios WHERE ad_id = ?', [$adId]);
+
+        Db::upsert('anuncios', [
+            'ad_id' => $adId,
+            'fp_id' => (string)($ad['id'] ?? ''),
+            'brand_id' => $brandId,
+            'nicho_id' => $nichoId,
+            'nome' => (string)($ad['name'] ?? ''),
+            'headline' => $headline,
+            'descricao' => $descricao,
+            'transcricao' => $transcricao,
+            'link_url' => $link,
+            'dominio' => $dominio,
+            'cta_type' => (string)($ad['cta_type'] ?? ''),
+            'formato' => strtolower((string)($ad['display_format'] ?? $ad['type'] ?? '')),
+            'plataformas' => json_encode($ad['publisher_platform'] ?? []),
+            'categoria' => implode(', ', (array)($ad['categories'] ?? [])),
+            'product_category' => (string)($ad['product_category'] ?? ''),
+            'tipo' => $tipo,
+            'dias_no_ar' => $dias,
+            'iniciou_em' => $iniciou,
+            'thumbnail' => (string)($ad['thumbnail'] ?? ''),
+            'video' => (string)($ad['video'] ?? ''),
+            'imagem' => (string)($ad['image'] ?? ''),
+            'live' => !empty($ad['live']) ? 1 : 0,
+            'hash_conteudo' => sha1($headline . '|' . $descricao . '|' . $transcricao),
+            'primeiro_visto' => $existe['primeiro_visto'] ?? $hoje,
+            'ultimo_visto' => $hoje,
+        ], ['ad_id']);
+
+        Db::upsert('vistos', ['data' => $hoje, 'ad_id' => $adId, 'brand_id' => $brandId], ['data', 'ad_id'], []);
+
+        $marca = Db::one('SELECT brand_id, primeiro_visto, tipo FROM anunciantes WHERE brand_id = ?', [$brandId]);
+        Db::upsert('anunciantes', [
+            'brand_id' => $brandId,
+            'nome' => (string)($ad['name'] ?? ''),
+            'avatar' => (string)($ad['avatar'] ?? ''),
+            'nicho_id' => $nichoId,
+            'tipo' => ($marca['tipo'] ?? '') === 'info' ? 'info' : $tipo,
+            'primeiro_visto' => $marca['primeiro_visto'] ?? $hoje,
+            'ultimo_visto' => $hoje,
+            'atualizado_em' => date('Y-m-d H:i:s'),
+        ], ['brand_id']);
+
+        return $existe === null;
+    }
+
+    public static function classificar(string $dominio, string $link, string $texto, string $categoria): string
+    {
+        foreach (self::DOMINIOS_INFO as $d) {
+            if ($dominio !== '' && str_contains($dominio, $d)) {
+                return 'info';
+            }
+        }
+        if (preg_match(self::PALAVRAS_INFO, $categoria)) {
+            return 'info';
+        }
+        // No texto exige 2 termos diferentes, para "metodo" sozinho (clinica, suplemento) nao contar.
+        preg_match_all(self::PALAVRAS_INFO, $texto, $m);
+        $distintos = array_unique(array_map(fn($s) => mb_strtolower($s), $m[0] ?? []));
+        return count($distintos) >= 2 ? 'info' : 'outro';
+    }
+}

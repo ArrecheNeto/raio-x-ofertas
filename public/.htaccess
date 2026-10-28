@@ -1,0 +1,19 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# Arquivos internos nunca sao servidos
+<FilesMatch "^(\.env.*|_app\.php|.*\.sqlite.*|.*\.log)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
