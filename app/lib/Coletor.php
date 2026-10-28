@@ -21,23 +21,36 @@ final class Coletor
             return ['ok' => false, 'teto' => true, 'erro' => 'Teto diario atingido. Coleta do nicho "' . $nicho['nome'] . '" nao foi feita.'];
         }
 
-        $r = Aisa::buscarAnuncios([
+        $base = [
             'query' => $nicho['termo'],
             'languages' => 'pt',
             'live' => 'true',
             'publisher_platform' => 'facebook',
             'order' => 'longest_running',
             'limit' => $limite,
-        ], 'nicho:' . $nicho['id']);
-
+        ];
+        $r = Aisa::buscarAnuncios($base, 'nicho:' . $nicho['id']);
         if (!$r['ok']) {
             return ['ok' => false, 'erro' => $r['erro'], 'http' => $r['http']];
+        }
+        $dados = $r['json']['data'] ?? [];
+        $micros = $r['micros'];
+
+        // Segunda busca so com anuncios marcados como educacao: traz poucos itens (cobra por item) e quase todos infoproduto.
+        if (Config::int('BUSCA_EDUCACAO', 1) === 1 && Custos::cabe($estimativa)) {
+            $r2 = Aisa::buscarAnuncios($base + ['niches' => 'education'], 'nicho-edu:' . $nicho['id']);
+            if ($r2['ok']) {
+                $dados = array_merge($dados, $r2['json']['data'] ?? []);
+                $micros += $r2['micros'];
+            } else {
+                Db::erro('coleta-edu:' . $nicho['id'], $r2['erro']);
+            }
         }
 
         $hoje = date('Y-m-d');
         $novos = 0;
         $vistosAgora = [];
-        foreach ($r['json']['data'] ?? [] as $ad) {
+        foreach ($dados as $ad) {
             $adId = (string)($ad['ad_id'] ?? $ad['id'] ?? '');
             if ($adId === '' || isset($vistosAgora[$adId])) {
                 continue; // a API as vezes repete o mesmo anuncio
@@ -45,7 +58,7 @@ final class Coletor
             $vistosAgora[$adId] = true;
             $novos += self::salvarAnuncio($ad, (int)$nicho['id'], $hoje) ? 1 : 0;
         }
-        return ['ok' => true, 'recebidos' => count($r['json']['data'] ?? []), 'unicos' => count($vistosAgora), 'novos' => $novos, 'micros' => $r['micros']];
+        return ['ok' => true, 'recebidos' => count($dados), 'unicos' => count($vistosAgora), 'novos' => $novos, 'micros' => $micros];
     }
 
     /** Retorna true se o anuncio e novo no banco. */

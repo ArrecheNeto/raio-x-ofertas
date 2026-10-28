@@ -169,6 +169,7 @@ O robô nunca repete uma chamada paga sozinho e, ao receber 401, 402 ou 429, par
 | Chave | Para que serve |
 |---|---|
 | `ADS_PER_NICHE` | Anúncios buscados por nicho por dia (padrão 20) |
+| `BUSCA_EDUCACAO` | 1 faz uma segunda busca por nicho só com anúncios de educação (poucos itens, quase todos infoproduto); 0 desliga |
 | `ANALYTICS_TOP` | Quantos anunciantes recebem a contagem real por dia (padrão 20; 0 desliga) |
 | `ANALYTICS_BACKFILL_DAYS` | Dias de histórico na primeira vez que um anunciante entra no top (padrão 7) |
 | `RAIOX_POR_DIA` | Máximo de Raio-X novos por dia (padrão 30) |
