@@ -80,6 +80,8 @@ Isso cria `dist/raio-x-ofertas-hostgator.zip` com duas pastas:
 5. Organize assim:
    - A pasta **`raiox_app`** fica em `/home/SEU_USUARIO/raiox_app` (ao lado da `public_html`, nunca dentro).
    - O **conteúdo** de `public_html` do zip (index.php, oferta.php, admin.php, saude.php, `_app.php`, `.htaccess` e a pasta `assets`) vai para a pasta pública escolhida no passo 3.1. Se for o domínio principal e a `public_html` já tiver um site, use um subdomínio para não misturar.
+   - **Cuidado com o `.htaccess`:** a HostGator já cria um `.htaccess` na pasta pública com as linhas que ligam o PHP (começam em `# php -- BEGIN cPanel-generated handler`). **Não substitua esse arquivo.** Abra o existente em **Editar**, vá até o fim e cole o conteúdo do nosso `.htaccess` embaixo. Se substituir, o site para de rodar PHP.
+   - Se a página der erro 500 ou 404 depois de extrair, confira as permissões no passo 3.4: arquivos PHP com 666 não rodam na HostGator.
 6. Apague o `.zip` do servidor.
 
 > Para ver o `.htaccess` no Gerenciador de Arquivos, clique em **Configurações** e marque **Mostrar arquivos ocultos**.

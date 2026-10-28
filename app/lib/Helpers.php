@@ -157,7 +157,7 @@ function layout_topo(string $titulo, string $ativo = 'ofertas'): void
     $admin = admin_logado();
     try {
         $navNichos = Db::all('SELECT id, nome FROM nichos WHERE ativo = 1 ORDER BY nome');
-        $ultima = Db::getConfig('ultima_atualizacao');
+        $ultima = Db::getConfig('ultima_atualizacao') ?? Db::val('SELECT MAX(fim) FROM execucoes WHERE jobs > 0');
     } catch (Throwable $e) {
         $navNichos = [];
         $ultima = null;
@@ -220,7 +220,7 @@ function layout_rodape(): void
 </footer>
 </div>
 </div>
-<script src="assets/app.js?v=4"></script>
+<script src="assets/app.js?v=5"></script>
 </body>
 </html>
 <?php

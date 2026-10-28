@@ -43,7 +43,10 @@ $adicionar = function (string $origem, string $destino) use ($zip, $ignorar): in
         if ($arq->isDir() || $ignorar($rel)) {
             continue;
         }
-        $zip->addFile($arq->getPathname(), $destino . '/' . str_replace('\\', '/', $rel));
+        $nome = $destino . '/' . str_replace('\\', '/', $rel);
+        $zip->addFile($arq->getPathname(), $nome);
+        // Sem isto, o zip feito no Windows extrai como 0666 e a HostGator recusa rodar o PHP.
+        $zip->setExternalAttributesName($nome, ZipArchive::OPSYS_UNIX, 0100644 << 16);
         $n++;
     }
     return $n;

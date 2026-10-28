@@ -8,8 +8,11 @@
   // Botao "Rodar agora" mostra que esta trabalhando.
   document.querySelectorAll('button[value="rodar"]').forEach(function (b) {
     b.form && b.form.addEventListener('submit', function () {
-      b.disabled = true;
-      b.textContent = 'Rodando, aguarde até 25 s...';
+      // Desativar so depois do envio: um botao desativado na hora nao manda acao=rodar.
+      setTimeout(function () {
+        b.disabled = true;
+        b.textContent = 'Rodando, aguarde até 25 s...';
+      }, 0);
     });
   });
 })();
