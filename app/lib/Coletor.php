@@ -15,12 +15,17 @@ final class Coletor
 
     /**
      * Com $busca (pesquisa na hora), ordena por relevancia, pula a busca de educacao e descarta anuncios
-     * que nao citam o termo, porque a busca da Foreplay e solta e traz curso de qualquer assunto.
+     * que nao citam o termo (se $filtrar), porque a busca da Foreplay e solta e traz curso de qualquer assunto.
+     * $quantidade (so na busca) pede mais anuncios, em paginas que cabem no teto por chamada.
      */
-    public static function coletarNicho(array $nicho, bool $busca = false): array
+    public static function coletarNicho(array $nicho, bool $busca = false, ?int $quantidade = null, bool $filtrar = true): array
     {
-        $limite = max(1, min(250, Config::int('ADS_PER_NICHE', 20)));
-        $estimativa = (int)round($limite * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000);
+        $preco = Config::float('PRECO_ITEM_USD', 0.0175);
+        $total = max(1, min(250, $busca && $quantidade ? $quantidade : Config::int('ADS_PER_NICHE', 20)));
+        // Uma chamada nao pode passar de MAX_PRICE_PER_CALL_USD: 0,90 / 0,0175 da no maximo 51 itens por pagina.
+        $porPagina = max(1, min(50, $total, (int)floor(Config::float('MAX_PRICE_PER_CALL_USD', 0.90) / $preco)));
+        $limite = $busca ? $porPagina : $total;
+        $estimativa = (int)round($limite * $preco * 1_000_000);
         if (!Custos::cabe($estimativa)) {
             return ['ok' => false, 'teto' => true, 'erro' => 'Teto diario atingido. Coleta do nicho "' . $nicho['nome'] . '" nao foi feita.'];
         }
@@ -39,6 +44,29 @@ final class Coletor
         }
         $dados = $r['json']['data'] ?? [];
         $micros = $r['micros'];
+        $paginas = 1;
+
+        // Busca com quantidade maior: segue o cursor da Foreplay, uma pagina por vez, enquanto couber no teto.
+        $teto = false;
+        while ($busca && count($dados) < $total) {
+            $cursor = $r['json']['metadata']['cursor'] ?? $r['json']['cursor'] ?? null;
+            $falta = min($porPagina, $total - count($dados));
+            if (!is_string($cursor) || $cursor === '' || count($r['json']['data'] ?? []) === 0) {
+                break;
+            }
+            if (!Custos::cabe((int)round($falta * $preco * 1_000_000))) {
+                $teto = true;
+                break;
+            }
+            $r = Aisa::buscarAnuncios(['cursor' => $cursor, 'limit' => $falta] + $base, 'nicho:' . $nicho['id'] . ':p' . ($paginas + 1));
+            if (!$r['ok']) {
+                Db::erro('busca-pagina:' . $nicho['id'], $r['erro']);
+                break;
+            }
+            $dados = array_merge($dados, $r['json']['data'] ?? []);
+            $micros += $r['micros'];
+            $paginas++;
+        }
 
         // Segunda busca so com anuncios marcados como educacao: traz poucos itens (cobra por item) e quase todos infoproduto.
         if (!$busca && Config::int('BUSCA_EDUCACAO', 1) === 1 && Custos::cabe($estimativa)) {
@@ -54,7 +82,7 @@ final class Coletor
         $hoje = date('Y-m-d');
         $novos = 0;
         $vistosAgora = [];
-        $palavras = $busca ? self::palavrasChave((string)$nicho['termo']) : [];
+        $palavras = $busca && $filtrar ? self::palavrasChave((string)$nicho['termo']) : [];
         $fora = 0;
         foreach ($dados as $ad) {
             $adId = (string)($ad['ad_id'] ?? $ad['id'] ?? '');
@@ -68,7 +96,7 @@ final class Coletor
             }
             $novos += self::salvarAnuncio($ad, (int)$nicho['id'], $hoje) ? 1 : 0;
         }
-        return ['ok' => true, 'recebidos' => count($dados), 'unicos' => count($vistosAgora) - $fora, 'fora' => $fora, 'novos' => $novos, 'micros' => $micros];
+        return ['ok' => true, 'recebidos' => count($dados), 'unicos' => count($vistosAgora) - $fora, 'fora' => $fora, 'novos' => $novos, 'micros' => $micros, 'paginas' => $paginas, 'teto_pagina' => $teto];
     }
 
     /** Raizes das palavras do termo que importam ("curso de confeitaria" vira ["confei"]). */

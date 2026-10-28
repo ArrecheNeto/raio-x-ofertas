@@ -130,7 +130,7 @@ final class Robo
      * Busca na hora: coleta um nicho ou produto digitado, recalcula a escala e faz o Raio-X das melhores ofertas
      * enquanto couber no tempo. Sem $acompanhar, o termo fica salvo como nicho pausado (fora da coleta diaria).
      */
-    public static function buscarAgora(string $termo, bool $acompanhar): array
+    public static function buscarAgora(string $termo, bool $acompanhar, int $quantidade = 20, bool $filtrar = true): array
     {
         $termo = trim(preg_replace('/\s+/u', ' ', $termo));
         if (mb_strlen($termo) < 3 || mb_strlen($termo) > 60) {
@@ -156,7 +156,7 @@ final class Robo
                 Db::q('UPDATE nichos SET ativo = 1 WHERE id = ?', [(int)$nicho['id']]);
             }
 
-            $r = Coletor::coletarNicho($nicho, true);
+            $r = Coletor::coletarNicho($nicho, true, max(10, min(100, $quantidade)), $filtrar);
             if (!$r['ok']) {
                 Db::erro('busca:' . $nicho['id'], $r['erro']);
                 return ['ok' => false, 'erro' => $r['erro'], 'nicho' => (int)$nicho['id']];
@@ -192,7 +192,7 @@ final class Robo
             }
             $info = (int)Db::val("SELECT COUNT(*) FROM anunciantes WHERE nicho_id = ? AND ultimo_visto = ? AND tipo = 'info'", [(int)$nicho['id'], date('Y-m-d')]);
             $marcas = (int)Db::val('SELECT COUNT(*) FROM anunciantes WHERE nicho_id = ? AND ultimo_visto = ?', [(int)$nicho['id'], date('Y-m-d')]);
-            return ['ok' => true, 'nicho' => (int)$nicho['id'], 'unicos' => $r['unicos'], 'marcas' => $marcas, 'info' => $info, 'raiox' => $raiox, 'micros' => $micros];
+            return ['ok' => true, 'nicho' => (int)$nicho['id'], 'unicos' => $r['unicos'], 'recebidos' => $r['recebidos'], 'fora' => $r['fora'], 'teto_pagina' => $r['teto_pagina'], 'marcas' => $marcas, 'info' => $info, 'raiox' => $raiox, 'micros' => $micros];
         } catch (Throwable $e) {
             Db::erro('busca', $e->getMessage());
             return ['ok' => false, 'erro' => $e->getMessage()];
