@@ -9,7 +9,9 @@ final class Coletor
         'cakto', 'lastlink', 'hubla', 'yampi', 'pepper', 'doppus', 'sun.eduzz', 'go.hotmart', 'pay.hotmart',
         'pay.kiwify', 'memberkit', 'cademi', 'curseduca', 'herospark', 'greatpages', 'lpages',
     ];
-    private const PALAVRAS_INFO = '/\b(curso|cursos|aula|aulas|m[eé]todo|ebook|e-book|mentoria|treinamento|masterclass|webin[aá]rio|webinar|workshop|imers[aã]o|desafio de \d+|apostila|guia completo|programa online|comunidade|forma[cç][aã]o|certificado|online course|course|coaching|digital product|info ?produto)\b/iu';
+    private const PALAVRAS_INFO = '/\b(curso|cursos|aula|aulas|m[eé]todo|ebook|e-book|mentoria|treinamento|masterclass|webin[aá]rio|webinar|workshop|imers[aã]o|desafio de \d+|apostila|guia completo|programa online|comunidade|forma[cç][aã]o|certificado|online course|courses?|coaching|digital product|info ?produto|online education|e-?learning|exam preparation|ead)\b/iu';
+    // Categorias que contem "course" mas nao sao infoproduto (app, faculdade).
+    private const NAO_INFO = '/\b(app|application|higher education|university|universidade)\b/iu';
 
     public static function coletarNicho(array $nicho): array
     {
@@ -113,6 +115,9 @@ final class Coletor
             if ($dominio !== '' && str_contains($dominio, $d)) {
                 return 'info';
             }
+        }
+        if (preg_match(self::NAO_INFO, $categoria) || str_contains($dominio, 'itunes.apple.com') || str_contains($dominio, 'play.google.com')) {
+            return 'outro';
         }
         if (preg_match(self::PALAVRAS_INFO, $categoria)) {
             return 'info';
