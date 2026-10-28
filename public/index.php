@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_app.php';
+exigir_acesso();
 
 $nichos = Db::all('SELECT id, nome FROM nichos ORDER BY nome');
 $nicho = (int)($_GET['nicho'] ?? 0);

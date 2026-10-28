@@ -9,6 +9,12 @@ if (PHP_SAPI !== 'cli') {
 }
 require dirname(__DIR__) . '/bootstrap.php';
 
+// Desligado no painel (Configuracoes): o cron continua no cPanel, mas nao faz nada. O botao Rodar agora segue funcionando.
+if (Config::int('AGENDAMENTO_ATIVO', 1) !== 1) {
+    echo '[' . date('Y-m-d H:i:s') . '] Agendamento desligado no painel. Nada foi feito.' . PHP_EOL;
+    exit(0);
+}
+
 $opts = getopt('', ['tempo::', 'coletas::']);
 $r = Robo::rodar('cron', isset($opts['tempo']) ? (int)$opts['tempo'] : null, isset($opts['coletas']) ? (int)$opts['coletas'] : null);
 

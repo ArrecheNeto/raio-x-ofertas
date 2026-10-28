@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_app.php';
+exigir_acesso();
 
 $id = (string)($_GET['id'] ?? '');
 $m = Db::one('SELECT m.*, n.nome AS nicho_nome FROM anunciantes m LEFT JOIN nichos n ON n.id = m.nicho_id WHERE m.brand_id = ?', [$id]);

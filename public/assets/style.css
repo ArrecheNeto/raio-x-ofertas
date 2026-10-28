@@ -317,3 +317,7 @@ section.painel { margin-bottom: 16px; }
   .checks li { grid-template-columns: 1fr; gap: 2px; }
   .painel { padding: 14px; }
 }
+.opcoes { border: 1px solid var(--borda); border-radius: var(--r); padding: 12px 14px; margin: 0; display: grid; gap: 12px; }
+.opcoes legend { padding: 0 6px; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--mut); }
+.form-grade .opcoes label.check { flex-direction: row; align-items: flex-start; gap: 10px; color: var(--txt); font-size: 13.5px; }
+.opcoes label.check input { margin-top: 3px; flex: none; }

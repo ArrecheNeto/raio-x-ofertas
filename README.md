@@ -70,6 +70,10 @@ Isso cria `dist/raio-x-ofertas-hostgator.zip` com duas pastas:
 
 - **No domínio principal** (seudominio.com.br): a pasta pública é `/home/SEU_USUARIO/public_html`.
 - **Num subdomínio** (ex.: raiox.seudominio.com.br): no cPanel, abra **Domínios** (ou **Subdomínios**), crie o subdomínio e anote a **Raiz do documento**, por exemplo `/home/SEU_USUARIO/raiox.seudominio.com.br`.
+- **Conta nova com endereço temporário** (`...meusitehostgator.com.br`) e um domínio comprado depois:
+  1. Na Área do Cliente da HostGator, em **Domínios > Configurar domínio**, confira que o domínio usa os servidores DNS da sua hospedagem (ex.: `ns262.hostgator.com.br` e `ns263.hostgator.com.br`).
+  2. No cPanel, em **Domínios**, crie o domínio como **alias** (ou "estacionado") do domínio principal. Ele passa a mostrar o mesmo site da `public_html`, sem mover nada.
+  3. Espere de 2 a 10 minutos. Antes disso aparece "Page cannot be displayed": é normal. O certificado HTTPS sai sozinho (AutoSSL).
 
 ### 3.2 Enviar os arquivos
 
@@ -165,6 +169,11 @@ Isso roda de 15 em 15 minutos entre 6h e 9h45. Com 5 nichos, a coleta termina po
 - **Rodar agora:** continua a fila do dia.
 - **Fila de hoje:** o que já rodou, o que falta e o que deu erro. Tarefas com erro **não** são repetidas sozinhas; use **Tentar de novo**.
 - **Configurações:** trocar a chave da AIsa, a senha, o teto diário e quantos anúncios buscar.
+- **Acesso e agendamento** (dentro de Configurações):
+  - **Agendamento automático:** desmarcado, a Tarefa Cron continua no cPanel mas não faz nada. Você roda quando quiser pelo botão **Rodar agora**.
+  - **Site só para mim:** as ofertas só abrem com login. Bom para gravar vídeo sem expor o site.
+  - **Esconder o botão Entrar:** some do menu; você entra direto pelo `/admin.php`.
+  - Não existe cadastro: o único acesso é a sua senha. Depois de 5 senhas erradas do mesmo IP (ou 30 no total) em 15 minutos, o login trava por 15 minutos.
 - **Nichos:** adicionar, renomear, trocar o termo de busca, pausar ou remover.
 - **Concorrentes:** acompanhar anunciantes específicos. Veja o Modo Concorrente abaixo.
 - **Erros recentes e execuções:** quanto tempo cada rodada levou.
@@ -191,6 +200,9 @@ O robô nunca repete uma chamada paga sozinho e, ao receber 401, 402 ou 429, par
 | `MODO_CONCORRENTE` | 1 liga o Modo Concorrente; 0 desliga sem apagar a lista |
 | `CONCORRENTE_ADS` | Anúncios ativos buscados por concorrente por dia (padrão 20) |
 | `MAX_CONCORRENTES` | Quantos concorrentes podem ser cadastrados (padrão 10) |
+| `AGENDAMENTO_ATIVO` | 1 deixa o cron coletar sozinho; 0 desliga (o botão Rodar agora continua) |
+| `SITE_PRIVADO` | 1 faz as ofertas só abrirem com login |
+| `ESCONDER_ENTRAR` | 1 esconde o botão Entrar do menu |
 | `RAIOX_POR_DIA` | Máximo de Raio-X novos por dia (padrão 30) |
 | `AI_MODEL` | Modelo de IA da AIsa (padrão `deepseek-v4.1-flash`; reserva `gpt-4o-mini`) |
 | `SO_INFOPRODUTO` | 1 mostra só infoproduto; 0 mostra tudo |

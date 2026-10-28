@@ -100,13 +100,64 @@ function tentar_login(): ?string
     if (!csrf_ok()) {
         return 'Sessão expirada. Tente de novo.';
     }
+    if ($bloqueio = login_bloqueado()) {
+        return $bloqueio;
+    }
     if (hash_equals($senha, (string)($_POST['senha'] ?? ''))) {
+        Db::q('DELETE FROM config WHERE chave = ?', ['login_ip_' . sha1(ip_cliente())]);
         session_regenerate_id(true);
         $_SESSION['admin'] = true;
         return null;
     }
+    registrar_falha_login();
     sleep(1);
-    return 'Senha incorreta.';
+    return login_bloqueado() ?? 'Senha incorreta.';
+}
+
+function ip_cliente(): string
+{
+    return (string)($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+}
+
+// Tentativas erradas: 5 do mesmo IP ou 30 no total em 15 minutos bloqueiam o login por 15 minutos.
+const LOGIN_JANELA = 900;
+const LOGIN_MAX_IP = 5;
+const LOGIN_MAX_GERAL = 30;
+
+/** Mensagem de bloqueio, ou null se pode tentar. */
+function login_bloqueado(): ?string
+{
+    foreach (['login_ip_' . sha1(ip_cliente()), 'login_geral'] as $k) {
+        $d = json_decode((string)Db::getConfig($k), true) ?: [];
+        if (($d['ate'] ?? 0) > time()) {
+            return 'Muitas tentativas erradas. O login está bloqueado por ' . (int)ceil(($d['ate'] - time()) / 60) . ' min.';
+        }
+    }
+    return null;
+}
+
+function registrar_falha_login(): void
+{
+    foreach (['login_ip_' . sha1(ip_cliente()) => LOGIN_MAX_IP, 'login_geral' => LOGIN_MAX_GERAL] as $k => $max) {
+        $d = json_decode((string)Db::getConfig($k), true) ?: [];
+        if (($d['desde'] ?? 0) < time() - LOGIN_JANELA) {
+            $d = ['n' => 0, 'desde' => time()];
+        }
+        $d['n']++;
+        if ($d['n'] >= $max) {
+            $d = ['n' => 0, 'desde' => time(), 'ate' => time() + LOGIN_JANELA];
+        }
+        Db::setConfig($k, json_encode($d));
+    }
+}
+
+/** Com SITE_PRIVADO=1, as páginas de ofertas só abrem para quem está logado. */
+function exigir_acesso(): void
+{
+    if (Config::int('SITE_PRIVADO', 0) === 1 && !admin_logado()) {
+        header('Location: admin.php');
+        exit;
+    }
 }
 
 /** Mini grafico SVG da curva. */
@@ -175,7 +226,7 @@ function layout_topo(string $titulo, string $ativo = 'ofertas'): void
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=6">
 </head>
 <body>
 <div class="app">
@@ -196,7 +247,7 @@ function layout_topo(string $titulo, string $ativo = 'ofertas'): void
       <?= $item('concorrentes', 'concorrentes.php', 'Concorrentes') ?>
       <?= $item('admin', 'admin.php', 'Painel') ?>
       <?= $item('saude', 'saude.php', 'Saúde') ?>
-    <?php else: ?>
+    <?php elseif (Config::int('ESCONDER_ENTRAR', 0) !== 1): ?>
       <?= str_replace('nav-item', 'nav-item nav-entrar', $item('entrar', 'admin.php', 'Entrar')) ?>
     <?php endif; ?>
   </nav>

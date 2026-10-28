@@ -161,6 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $novos[$k] = $k === 'DAILY_BUDGET_USD' ? number_format((float)$v, 2, '.', '') : (string)(int)$v;
                     }
                 }
+                foreach (['AGENDAMENTO_ATIVO', 'SITE_PRIVADO', 'ESCONDER_ENTRAR'] as $k) {
+                    $novos[$k] = !empty($_POST[$k]) ? '1' : '0';
+                }
                 $novaSenha = (string)($_POST['senha_nova'] ?? '');
                 if ($novaSenha !== '') {
                     if (!hash_equals(Config::str('ADMIN_PASSWORD'), (string)($_POST['senha_atual'] ?? ''))) {
@@ -222,6 +225,7 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
 
 <section class="painel">
   <h2>Rodar a coleta agora</h2>
+  <p class="small">Agendamento automático: <?= Config::int('AGENDAMENTO_ATIVO', 1) === 1 ? '<span class="st st-ok">ligado</span>' : '<span class="st st-pulado">desligado</span>' ?> <a class="small" href="#config">mudar</a></p>
   <p class="mut">Cada clique trabalha por até 25 segundos e continua a fila do dia de onde parou: primeiro a coleta dos nichos e dos concorrentes, depois a contagem de anúncios ativos, depois o Raio-X com IA. Clique de novo até a fila acabar.</p>
   <form method="post" class="linha-form">
     <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
@@ -393,6 +397,12 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
     <label>Anúncios por nicho<input type="number" name="ADS_PER_NICHE" value="<?= Config::int('ADS_PER_NICHE', 20) ?>" min="1" max="250" required></label>
     <label>Anunciantes com contagem real<input type="number" name="ANALYTICS_TOP" value="<?= Config::int('ANALYTICS_TOP', 20) ?>" min="0" max="100" required></label>
     <label>Raio-X por dia<input type="number" name="RAIOX_POR_DIA" value="<?= Config::int('RAIOX_POR_DIA', 30) ?>" min="0" max="500" required></label>
+    <fieldset class="largo opcoes">
+      <legend>Acesso e agendamento</legend>
+      <label class="check"><input type="checkbox" name="AGENDAMENTO_ATIVO" value="1" <?= Config::int('AGENDAMENTO_ATIVO', 1) === 1 ? 'checked' : '' ?>> <span><b>Agendamento automático</b><br><span class="mut small">Desmarcado, a Tarefa Cron não faz nada. O botão Rodar agora continua funcionando.</span></span></label>
+      <label class="check"><input type="checkbox" name="SITE_PRIVADO" value="1" <?= Config::int('SITE_PRIVADO', 0) === 1 ? 'checked' : '' ?>> <span><b>Site só para mim</b><br><span class="mut small">As ofertas só abrem com login. Quem não está logado cai na tela de senha.</span></span></label>
+      <label class="check"><input type="checkbox" name="ESCONDER_ENTRAR" value="1" <?= Config::int('ESCONDER_ENTRAR', 0) === 1 ? 'checked' : '' ?>> <span><b>Esconder o botão Entrar</b><br><span class="mut small">Some do menu. Você entra direto pelo endereço /admin.php.</span></span></label>
+    </fieldset>
     <label>Senha atual <span class="mut small">(só para trocar a senha)</span><input type="password" name="senha_atual" autocomplete="current-password"></label>
     <label>Senha nova<input type="password" name="senha_nova" minlength="8" autocomplete="new-password"></label>
     <div class="largo"><button class="btn btn-pri" name="acao" value="config_salvar">Salvar configurações</button>
