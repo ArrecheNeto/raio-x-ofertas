@@ -251,6 +251,17 @@ app/               (vira raiox_app, fora da pasta pública)
 scripts/gerar-zip.php
 ```
 
+## Pesquisar na hora
+
+Logado, a página de Ofertas mostra o campo **Pesquisar agora**. Digite um nicho ou produto (ex.: `curso de confeitaria`, `inglês`) e o robô:
+
+1. busca os anúncios em português mais relevantes para o termo (20 por padrão, `ADS_PER_NICHE`);
+2. descarta os que não citam as palavras do termo (sem acento, todas as palavras);
+3. calcula a escala e faz o Raio-X dos 3 principais;
+4. abre a lista filtrada por esse termo.
+
+Com **Acompanhar todo dia** marcado, o termo vira um nicho da coleta diária. Desmarcado, ele fica salvo como nicho pausado (dá para ligar depois no painel). Cada pesquisa custa como uma coleta de nicho (cerca de US$ 0,35 com 20 anúncios) e respeita o teto diário. Para visitantes o campo não aparece.
+
 ## Modo Concorrente
 
 Serve para acompanhar todo dia anunciantes que você escolhe, como seus concorrentes diretos, mesmo que eles não apareçam na busca dos nichos.

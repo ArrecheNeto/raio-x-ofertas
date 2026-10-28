@@ -126,6 +126,82 @@ final class Robo
         return self::fim($inicio, $jobs, $origem, $log);
     }
 
+    /**
+     * Busca na hora: coleta um nicho ou produto digitado, recalcula a escala e faz o Raio-X das melhores ofertas
+     * enquanto couber no tempo. Sem $acompanhar, o termo fica salvo como nicho pausado (fora da coleta diaria).
+     */
+    public static function buscarAgora(string $termo, bool $acompanhar): array
+    {
+        $termo = trim(preg_replace('/\s+/u', ' ', $termo));
+        if (mb_strlen($termo) < 3 || mb_strlen($termo) > 60) {
+            return ['ok' => false, 'erro' => 'Digite um nicho ou produto entre 3 e 60 letras.'];
+        }
+        if (!Aisa::temChave()) {
+            return ['ok' => false, 'erro' => 'Configure a chave da AIsa no Painel antes de pesquisar.'];
+        }
+        $inicio = microtime(true);
+        @set_time_limit(150);
+
+        $lock = fopen(DATA_DIR . '/robo.lock', 'c');
+        if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+            return ['ok' => false, 'erro' => 'O robô está rodando agora. Espere uns segundos e pesquise de novo.'];
+        }
+        try {
+            $nome = mb_strtolower($termo);
+            $nicho = Db::one('SELECT * FROM nichos WHERE LOWER(termo) = ? OR nome = ?', [$nome, $nome]);
+            if ($nicho === null) {
+                Db::q('INSERT INTO nichos (nome, termo, ativo, criado_em) VALUES (?,?,?,?)', [$nome, $termo, $acompanhar ? 1 : 0, date('Y-m-d H:i:s')]);
+                $nicho = Db::one('SELECT * FROM nichos WHERE nome = ? ORDER BY id DESC', [$nome]);
+            } elseif ($acompanhar && !(int)$nicho['ativo']) {
+                Db::q('UPDATE nichos SET ativo = 1 WHERE id = ?', [(int)$nicho['id']]);
+            }
+
+            $r = Coletor::coletarNicho($nicho, true);
+            if (!$r['ok']) {
+                Db::erro('busca:' . $nicho['id'], $r['erro']);
+                return ['ok' => false, 'erro' => $r['erro'], 'nicho' => (int)$nicho['id']];
+            }
+            Escala::recalcularTodos();
+
+            // Raio-X das ofertas principais desse nicho, ate uns 40 s no total.
+            $soInfo = Config::int('SO_INFOPRODUTO', 1) === 1;
+            $ads = array_column(Db::all(
+                "SELECT a.ad_id FROM anunciantes m
+                 JOIN anuncios a ON a.ad_id = m.anuncio_principal
+                 LEFT JOIN raiox x ON x.ad_id = a.ad_id
+                 WHERE m.nicho_id = ? AND m.ultimo_visto = ? AND x.ad_id IS NULL" . ($soInfo ? " AND m.tipo = 'info'" : '') . "
+                 ORDER BY a.dias_no_ar DESC LIMIT 3",
+                [(int)$nicho['id'], date('Y-m-d')]
+            ), 'ad_id');
+            $raiox = 0;
+            $micros = (int)$r['micros'];
+            foreach ($ads as $adId) {
+                if (microtime(true) - $inicio > 40) {
+                    break;
+                }
+                $x = RaioX::analisar($adId);
+                if ($x['ok']) {
+                    $raiox++;
+                    $micros += (int)($x['micros'] ?? 0);
+                } else {
+                    Db::erro('busca-raiox:' . $adId, $x['erro']);
+                    if (!empty($x['teto'])) {
+                        break;
+                    }
+                }
+            }
+            $info = (int)Db::val("SELECT COUNT(*) FROM anunciantes WHERE nicho_id = ? AND ultimo_visto = ? AND tipo = 'info'", [(int)$nicho['id'], date('Y-m-d')]);
+            $marcas = (int)Db::val('SELECT COUNT(*) FROM anunciantes WHERE nicho_id = ? AND ultimo_visto = ?', [(int)$nicho['id'], date('Y-m-d')]);
+            return ['ok' => true, 'nicho' => (int)$nicho['id'], 'unicos' => $r['unicos'], 'marcas' => $marcas, 'info' => $info, 'raiox' => $raiox, 'micros' => $micros];
+        } catch (Throwable $e) {
+            Db::erro('busca', $e->getMessage());
+            return ['ok' => false, 'erro' => $e->getMessage()];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
     private static function executar(array $job): array
     {
         try {

@@ -3,6 +3,32 @@ declare(strict_types=1);
 require __DIR__ . '/_app.php';
 exigir_acesso();
 
+// Busca na hora: so logado, porque gasta credito da AIsa.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'buscar' && admin_logado()) {
+    if (!csrf_ok()) {
+        $_SESSION['flash'] = ['erro', 'Sessão expirada. Recarregue a página e pesquise de novo.'];
+        header('Location: index.php');
+        exit;
+    }
+    $r = Robo::buscarAgora((string)($_POST['termo'] ?? ''), !empty($_POST['acompanhar']));
+    if ($r['ok']) {
+        $txt = sprintf('Pesquisa pronta: %d anúncios de %d anunciantes, %d deles de infoproduto, e %d Raio-X feitos agora. Custo: %s.', $r['unicos'], $r['marcas'], $r['info'], $r['raiox'], Custos::usd($r['micros'], 4));
+        if ($r['info'] < 3 && $r['marcas'] > $r['info']) {
+            $txt .= ' Veio pouco infoproduto: tente um termo como "curso de ' . mb_strtolower(trim((string)$_POST['termo'])) . '" ou marque "Incluir produtos físicos e serviços".';
+        }
+        $_SESSION['flash'] = ['ok', $txt];
+    } else {
+        $_SESSION['flash'] = ['erro', $r['erro']];
+    }
+    header('Location: index.php' . (!empty($r['nicho']) ? '?nicho=' . $r['nicho'] : ''));
+    exit;
+}
+$flash = null;
+if (admin_logado() && isset($_SESSION['flash'])) {
+    $flash = $_SESSION['flash'];
+    unset($_SESSION['flash']);
+}
+
 $nichos = Db::all('SELECT id, nome FROM nichos ORDER BY nome');
 $nicho = (int)($_GET['nicho'] ?? 0);
 $status = (string)($_GET['status'] ?? '');
@@ -63,6 +89,20 @@ layout_topo('Raio-X de Ofertas: ofertas escaladas da semana');
     <p class="atualizado">Última atualização: <b><?= $ultima ? e(data_br($ultima, true)) : 'ainda não coletado' ?></b></p>
   </div>
 </section>
+
+<?php if ($flash): ?><p class="<?= $flash[0] === 'ok' ? 'aviso' : 'alerta' ?>"><?= e($flash[1]) ?></p><?php endif; ?>
+<?php if (admin_logado()): ?>
+<form class="busca" method="post" action="index.php">
+  <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+  <input type="hidden" name="acao" value="buscar">
+  <label class="busca-campo"><span class="sr">Nicho ou produto</span>
+    <input type="search" name="termo" required minlength="3" maxlength="60" placeholder="Digite um nicho ou produto. Ex.: confeitaria, inglês, tráfego pago" autocomplete="off">
+  </label>
+  <button class="btn btn-pri" name="acao" value="buscar">Pesquisar agora</button>
+  <label class="check"><input type="checkbox" name="acompanhar" value="1" checked> Acompanhar todo dia</label>
+  <p class="mut small">Busca os anúncios em português rodando há mais tempo para esse termo e faz o Raio-X dos 3 principais. Leva até 1 minuto.</p>
+</form>
+<?php endif; ?>
 
 <form class="filtros" method="get" action="index.php">
   <div class="chips" role="group" aria-label="Status">

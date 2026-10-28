@@ -13,7 +13,11 @@ final class Coletor
     // Categorias que contem "course" mas nao sao infoproduto (app, faculdade).
     private const NAO_INFO = '/\b(app|application|higher education|university|universidade)\b/iu';
 
-    public static function coletarNicho(array $nicho): array
+    /**
+     * Com $busca (pesquisa na hora), ordena por relevancia, pula a busca de educacao e descarta anuncios
+     * que nao citam o termo, porque a busca da Foreplay e solta e traz curso de qualquer assunto.
+     */
+    public static function coletarNicho(array $nicho, bool $busca = false): array
     {
         $limite = max(1, min(250, Config::int('ADS_PER_NICHE', 20)));
         $estimativa = (int)round($limite * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000);
@@ -26,7 +30,7 @@ final class Coletor
             'languages' => 'pt',
             'live' => 'true',
             'publisher_platform' => 'facebook',
-            'order' => 'longest_running',
+            'order' => $busca ? 'most_relevant' : 'longest_running',
             'limit' => $limite,
         ];
         $r = Aisa::buscarAnuncios($base, 'nicho:' . $nicho['id']);
@@ -37,7 +41,7 @@ final class Coletor
         $micros = $r['micros'];
 
         // Segunda busca so com anuncios marcados como educacao: traz poucos itens (cobra por item) e quase todos infoproduto.
-        if (Config::int('BUSCA_EDUCACAO', 1) === 1 && Custos::cabe($estimativa)) {
+        if (!$busca && Config::int('BUSCA_EDUCACAO', 1) === 1 && Custos::cabe($estimativa)) {
             $r2 = Aisa::buscarAnuncios($base + ['niches' => 'education'], 'nicho-edu:' . $nicho['id']);
             if ($r2['ok']) {
                 $dados = array_merge($dados, $r2['json']['data'] ?? []);
@@ -50,15 +54,52 @@ final class Coletor
         $hoje = date('Y-m-d');
         $novos = 0;
         $vistosAgora = [];
+        $palavras = $busca ? self::palavrasChave((string)$nicho['termo']) : [];
+        $fora = 0;
         foreach ($dados as $ad) {
             $adId = (string)($ad['ad_id'] ?? $ad['id'] ?? '');
             if ($adId === '' || isset($vistosAgora[$adId])) {
                 continue; // a API as vezes repete o mesmo anuncio
             }
             $vistosAgora[$adId] = true;
+            if ($palavras && !self::cita($ad, $palavras)) {
+                $fora++;
+                continue;
+            }
             $novos += self::salvarAnuncio($ad, (int)$nicho['id'], $hoje) ? 1 : 0;
         }
-        return ['ok' => true, 'recebidos' => count($dados), 'unicos' => count($vistosAgora), 'novos' => $novos, 'micros' => $micros];
+        return ['ok' => true, 'recebidos' => count($dados), 'unicos' => count($vistosAgora) - $fora, 'fora' => $fora, 'novos' => $novos, 'micros' => $micros];
+    }
+
+    /** Raizes das palavras do termo que importam ("curso de confeitaria" vira ["confei"]). */
+    private static function palavrasChave(string $termo): array
+    {
+        $vazias = ['curso', 'cursos', 'como', 'para', 'online', 'metodo', 'aula', 'aulas', 'mentoria', 'treinamento', 'ebook', 'sobre', 'com', 'sem', 'dos', 'das', 'de', 'do', 'da', 'e', 'em', 'no', 'na'];
+        $r = [];
+        foreach (preg_split('/[^\p{L}\p{N}]+/u', self::semAcento($termo)) as $p) {
+            if (mb_strlen($p) >= 3 && !in_array($p, $vazias, true)) {
+                $r[] = mb_substr($p, 0, max(3, min(6, mb_strlen($p) - 1)));
+            }
+        }
+        return array_values(array_unique($r));
+    }
+
+    private static function cita(array $ad, array $palavras): bool
+    {
+        $texto = self::semAcento(implode(' ', [
+            $ad['name'] ?? '', $ad['brand_name'] ?? '', $ad['headline'] ?? '', $ad['description'] ?? '', $ad['full_transcription'] ?? '', $ad['link_url'] ?? '',
+        ]));
+        foreach ($palavras as $p) {
+            if (!str_contains($texto, $p)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function semAcento(string $t): string
+    {
+        return strtr(mb_strtolower($t), ['á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'é' => 'e', 'ê' => 'e', 'í' => 'i', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ú' => 'u', 'ü' => 'u', 'ç' => 'c']);
     }
 
     /** Retorna true se o anuncio e novo no banco. Sem nicho (concorrente), mantem o nicho que ja estava gravado. */

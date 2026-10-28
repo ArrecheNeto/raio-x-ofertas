@@ -6,12 +6,12 @@
   });
 
   // Botao "Rodar agora" mostra que esta trabalhando.
-  document.querySelectorAll('button[value="rodar"]').forEach(function (b) {
+  document.querySelectorAll('button[value="rodar"], button[value="buscar"]').forEach(function (b) {
     b.form && b.form.addEventListener('submit', function () {
       // Desativar so depois do envio: um botao desativado na hora nao manda acao=rodar.
       setTimeout(function () {
         b.disabled = true;
-        b.textContent = 'Rodando, aguarde até 25 s...';
+        b.textContent = b.value === 'buscar' ? 'Pesquisando, aguarde...' : 'Rodando, aguarde até 25 s...';
       }, 0);
     });
   });
