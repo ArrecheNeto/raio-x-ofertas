@@ -68,6 +68,7 @@ final class Db
     }
 
     private const COLUNAS_NOVAS = [
+        'anunciantes' => ['page_id' => '{K}'],
         'concorrentes' => [
             'ad_library_id' => '{K}', 'candidatos' => '{TXT}', 'ativo' => 'INTEGER DEFAULT 1',
             'status' => '{K}', 'erro' => '{TXT}', 'ultima_coleta' => '{K}',

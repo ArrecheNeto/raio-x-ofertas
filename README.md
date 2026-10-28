@@ -26,12 +26,15 @@ Valores reais observados na AIsa em outubro de 2026:
 |---|---|
 | Cada anúncio coletado | US$ 0,0175 |
 | Cada dia de contagem de um anunciante | US$ 0,0175 |
+| Achar a página do Facebook de um anunciante (uma vez só, para a contagem) | até US$ 0,05 |
 | Cada Raio-X com IA (modelo deepseek-v4.1-flash) | cerca de US$ 0,001 |
 | Cada concorrente acompanhado (20 anúncios + 1 dia de contagem) | cerca de US$ 0,37 por dia |
 | Achar a marca de um concorrente pelo domínio | até US$ 0,05, uma vez só |
 | Checagem de conta e saldo | grátis |
 
 Com 5 nichos de 20 anúncios e o top 20 com contagem: cerca de **US$ 2,10 por dia** e **US$ 63 por mês**. No primeiro dia é um pouco mais, porque busca 7 dias de histórico para cada anunciante novo no top. O teto diário (`DAILY_BUDGET_USD`) para tudo quando é atingido e registra no painel.
+
+**Como a contagem de anúncios ativos funciona:** a AIsa só devolve a contagem certa com o número da página do Facebook do anunciante. O robô descobre esse número uma vez, pelo site próprio do anunciante, e guarda no banco. Anunciante que só usa link de checkout, WhatsApp ou YouTube não tem como ser identificado. Nesse caso o robô pula a contagem sem gastar nada e usa os anúncios vistos por dia.
 
 Para gastar menos, diminua `ADS_PER_NICHE`, o número de nichos ou `ANALYTICS_TOP` no `.env`.
 

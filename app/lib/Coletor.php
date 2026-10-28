@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** Coleta de anuncios por nicho e gravacao no banco (sem duplicados). */
 final class Coletor
 {
-    private const DOMINIOS_INFO = [
+    public const DOMINIOS_INFO = [
         'hotmart', 'kiwify', 'eduzz', 'monetizze', 'ticto', 'braip', 'perfectpay', 'kirvano', 'greenn',
         'cakto', 'lastlink', 'hubla', 'yampi', 'pepper', 'doppus', 'sun.eduzz', 'go.hotmart', 'pay.hotmart',
         'pay.kiwify', 'memberkit', 'cademi', 'curseduca', 'herospark', 'greatpages', 'lpages',

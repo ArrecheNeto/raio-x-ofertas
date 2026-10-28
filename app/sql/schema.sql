@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS anunciantes (
   max_dias INTEGER DEFAULT 0,
   ativos_atual INTEGER,
   ativos_fonte {K},
+  page_id {K},
   status {K},
   delta7 REAL,
   delta14 REAL,
