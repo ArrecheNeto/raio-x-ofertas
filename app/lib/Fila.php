@@ -4,7 +4,8 @@ declare(strict_types=1);
 /** Fila simples no banco. Cada execucao do cron pega poucos itens e termina rapido. */
 final class Fila
 {
-    public const PRIORIDADE = ['coleta' => 1, 'analytics' => 2, 'raiox' => 3];
+    public const PRIORIDADE = ['coleta' => 1, 'concorrente_busca' => 1, 'concorrente' => 1, 'analytics' => 2, 'raiox' => 3];
+    public const ORDEM_SQL = "CASE tipo WHEN 'coleta' THEN 1 WHEN 'concorrente_busca' THEN 1 WHEN 'concorrente' THEN 1 WHEN 'analytics' THEN 2 ELSE 3 END";
 
     public static function adicionar(string $tipo, string $ref, ?string $data = null): void
     {
@@ -23,7 +24,7 @@ final class Fila
             $sql .= ' AND tipo = ?';
             $p[] = $tipo;
         }
-        $sql .= " ORDER BY CASE tipo WHEN 'coleta' THEN 1 WHEN 'analytics' THEN 2 ELSE 3 END, id LIMIT 1";
+        $sql .= ' ORDER BY ' . self::ORDEM_SQL . ', id LIMIT 1';
         return Db::one($sql, $p);
     }
 

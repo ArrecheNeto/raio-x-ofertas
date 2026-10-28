@@ -27,6 +27,7 @@ $serie = Escala::serie($id, 30);
 $st = $m['status'] ?: 'coletando';
 $link = $ad ? url_segura($ad['link_url']) : '';
 $historico = array_reverse($serie['pontos'], true);
+$ehConcorrente = (bool)Db::val('SELECT id FROM concorrentes WHERE brand_id = ?', [$id]);
 
 layout_topo($m['nome'] . ' | Raio-X de Ofertas');
 ?>
@@ -39,6 +40,14 @@ layout_topo($m['nome'] . ' | Raio-X de Ofertas');
       <p class="eyebrow"><?= e(mb_convert_case((string)$m['nicho_nome'], MB_CASE_TITLE)) ?><?= $m['tipo'] === 'info' ? ' · Infoproduto' : '' ?></p>
       <h1><?= e($m['nome']) ?></h1>
       <div class="linha-selos"><?= selo($st) ?><span class="mut">Visto pela primeira vez em <?= e(data_br($m['primeiro_visto'])) ?></span></div>
+      <?php if (admin_logado() && Concorrente::ativo() && !str_starts_with($id, 'sem-marca-')): ?>
+        <?php if ($ehConcorrente): ?>
+          <p class="mut small">Você acompanha este anunciante. <a href="concorrentes.php">Ver concorrentes</a></p>
+        <?php else: ?>
+          <form method="post" action="admin.php" class="linha-form"><input type="hidden" name="csrf" value="<?= e(csrf()) ?>"><input type="hidden" name="brand_id" value="<?= e($id) ?>">
+            <button class="btn btn-mini" name="acao" value="conc_marca">Acompanhar como concorrente</button></form>
+        <?php endif; ?>
+      <?php endif; ?>
     </div>
   </div>
   <div class="oferta-kpis">

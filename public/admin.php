@@ -70,6 +70,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Db::q('DELETE FROM config WHERE chave = ?', ['teto_' . date('Y-m-d')]);
                 $msg = 'Tarefa voltou para a fila. Ela roda na próxima execução (ou clique em Rodar agora).';
                 break;
+            case 'conc_dominio':
+                $msg = Concorrente::adicionarPorDominio((string)($_POST['dominio'] ?? ''), (string)($_POST['nome'] ?? ''))
+                    ?? 'Concorrente adicionado. A marca é procurada na próxima execução (clique em Rodar agora para fazer já).';
+                break;
+            case 'conc_marca':
+                $msg = Concorrente::adicionarPorMarca((string)($_POST['brand_id'] ?? ''))
+                    ?? 'Anunciante adicionado aos concorrentes. Os anúncios dele entram na próxima execução.';
+                break;
+            case 'conc_trocar':
+                Concorrente::escolherCandidato((int)$_POST['id'], (string)($_POST['brand_id'] ?? ''));
+                $msg = 'Marca trocada. A coleta dela entra na próxima execução.';
+                break;
+            case 'conc_pausar':
+                Db::q('UPDATE concorrentes SET ativo = 1 - ativo WHERE id = ?', [(int)$_POST['id']]);
+                $msg = 'Concorrente atualizado.';
+                break;
+            case 'conc_buscar':
+                Db::q("UPDATE concorrentes SET status = 'buscando', erro = NULL WHERE id = ?", [(int)$_POST['id']]);
+                Fila::adicionar('concorrente_busca', (string)(int)$_POST['id']);
+                $msg = 'Nova busca da marca agendada para a próxima execução.';
+                break;
+            case 'conc_apagar':
+                Db::q('DELETE FROM concorrentes WHERE id = ?', [(int)$_POST['id']]);
+                $msg = 'Concorrente removido. Os anúncios já coletados continuam no banco.';
+                break;
             case 'limpar_erros':
                 Db::q('DELETE FROM erros');
                 $msg = 'Erros apagados.';
@@ -84,7 +109,7 @@ $gMes = Custos::gastoMes();
 $teto = Custos::tetoMicros();
 $porTipo = Db::all('SELECT tipo, COUNT(*) AS n, SUM(micros) AS micros, SUM(itens) AS itens FROM custos WHERE data = ? GROUP BY tipo', [$hoje]);
 $porDia = Db::all('SELECT data, SUM(micros) AS micros, COUNT(*) AS n FROM custos WHERE data >= ? GROUP BY data ORDER BY data DESC', [date('Y-m-d', strtotime('-30 days'))]);
-$fila = Db::all("SELECT * FROM fila WHERE data = ? ORDER BY CASE tipo WHEN 'coleta' THEN 1 WHEN 'analytics' THEN 2 ELSE 3 END, id", [$hoje]);
+$fila = Db::all('SELECT * FROM fila WHERE data = ? ORDER BY ' . Fila::ORDEM_SQL . ', id', [$hoje]);
 $filaResumo = [];
 foreach ($fila as $f) {
     $filaResumo[$f['tipo']][$f['status']] = ($filaResumo[$f['tipo']][$f['status']] ?? 0) + 1;
@@ -92,6 +117,7 @@ foreach ($fila as $f) {
 $erros = Db::all('SELECT * FROM erros ORDER BY id DESC LIMIT 20');
 $execs = Db::all('SELECT * FROM execucoes ORDER BY id DESC LIMIT 10');
 $nichos = Db::all('SELECT n.*, (SELECT COUNT(*) FROM anuncios a WHERE a.nicho_id = n.id) AS total FROM nichos n ORDER BY n.id');
+$concorrentes = Db::all('SELECT c.*, m.status AS escala, m.ativos_atual, m.ativos_fonte FROM concorrentes c LEFT JOIN anunciantes m ON m.brand_id = c.brand_id ORDER BY c.id');
 $totais = Db::one("SELECT (SELECT COUNT(*) FROM anuncios) AS anuncios, (SELECT COUNT(*) FROM anunciantes) AS anunciantes, (SELECT COUNT(*) FROM anunciantes WHERE tipo='info') AS info, (SELECT COUNT(*) FROM raiox) AS raiox");
 
 layout_topo('Painel | Raio-X de Ofertas', 'admin');
@@ -115,10 +141,10 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
 
 <section class="painel">
   <h2>Rodar a coleta agora</h2>
-  <p class="mut">Cada clique trabalha por até 25 segundos e continua a fila do dia de onde parou: primeiro a coleta dos nichos, depois a contagem de anúncios ativos, depois o Raio-X com IA. Clique de novo até a fila acabar.</p>
+  <p class="mut">Cada clique trabalha por até 25 segundos e continua a fila do dia de onde parou: primeiro a coleta dos nichos e dos concorrentes, depois a contagem de anúncios ativos, depois o Raio-X com IA. Clique de novo até a fila acabar.</p>
   <form method="post" class="linha-form">
     <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
-    <label>Nichos por clique <input type="number" name="coletas" value="1" min="1" max="10"></label>
+    <label>Coletas por clique <input type="number" name="coletas" value="1" min="1" max="10"></label>
     <button class="btn btn-pri" name="acao" value="rodar">Rodar agora</button>
   </form>
   <?php if ($resultado): ?>
@@ -141,7 +167,11 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
     <?php foreach ($fila as $f): ?>
       <tr>
         <td><?= e($f['tipo']) ?></td>
-        <td class="mono"><?= e($f['tipo'] === 'coleta' ? (string)Db::val('SELECT nome FROM nichos WHERE id = ?', [(int)$f['ref']]) : $f['ref']) ?></td>
+        <td class="mono"><?= e(match ($f['tipo']) {
+            'coleta' => (string)Db::val('SELECT nome FROM nichos WHERE id = ?', [(int)$f['ref']]),
+            'concorrente', 'concorrente_busca' => (string)Db::val('SELECT nome FROM concorrentes WHERE id = ?', [(int)$f['ref']]),
+            default => $f['ref'],
+        }) ?></td>
         <td><span class="st st-<?= e($f['status']) ?>"><?= e($f['status']) ?></span></td>
         <td class="small"><?= e((string)$f['erro']) ?></td>
         <td><?php if (in_array($f['status'], ['erro', 'pulado'], true)): ?>
@@ -226,8 +256,49 @@ layout_topo('Painel | Raio-X de Ofertas', 'admin');
 </section>
 </div>
 
-<section class="painel desativado">
-  <h2>Modo Concorrente <small>em breve</small></h2>
-  <p class="mut">Acompanhar anunciantes específicos pelo domínio (ex.: seus concorrentes). A estrutura já existe no banco, mas este modo ainda não está ativo.</p>
+<section class="painel" id="concorrentes">
+  <div class="adm-topo"><h2>Concorrentes</h2><?php if ($concorrentes): ?><a class="btn btn-mini" href="concorrentes.php">Ver a página dos concorrentes</a><?php endif; ?></div>
+  <?php if (!Concorrente::ativo()): ?><p class="alerta">O Modo Concorrente está desligado (MODO_CONCORRENTE=0 no .env).</p><?php endif; ?>
+  <p class="mut">Anunciantes que você quer acompanhar todo dia, mesmo fora dos nichos. Digite o domínio do site deles, ou use o botão "Acompanhar como concorrente" na página de qualquer oferta.</p>
+  <?php foreach ($concorrentes as $c): ?>
+    <form method="post" id="fc<?= (int)$c['id'] ?>"><input type="hidden" name="csrf" value="<?= e(csrf()) ?>"><input type="hidden" name="id" value="<?= (int)$c['id'] ?>"></form>
+  <?php endforeach; ?>
+  <?php if ($concorrentes): ?>
+  <div class="tabela-rolagem"><table class="tabela">
+    <thead><tr><th>Concorrente</th><th>Domínio</th><th>Situação</th><th>Última coleta</th><th></th></tr></thead>
+    <tbody>
+    <?php foreach ($concorrentes as $c): $f = 'fc' . (int)$c['id']; $cands = json_decode((string)$c['candidatos'], true) ?: []; ?>
+      <tr>
+        <td><?php if ($c['status'] === 'ok' && $c['escala'] !== null): ?><a href="oferta.php?id=<?= e(urlencode((string)$c['brand_id'])) ?>"><?= e($c['nome']) ?></a><?php else: ?><?= e($c['nome']) ?><?php endif; ?>
+          <?php if (count($cands) > 1): ?>
+            <br><select form="<?= $f ?>" name="brand_id" class="small" aria-label="Marca encontrada">
+              <?php foreach ($cands as $cd): ?><option value="<?= e($cd['brand_id']) ?>" <?= $cd['brand_id'] === $c['brand_id'] ? 'selected' : '' ?>><?= e($cd['nome'] ?: $cd['brand_id']) ?></option><?php endforeach; ?>
+            </select> <button form="<?= $f ?>" class="btn btn-mini" name="acao" value="conc_trocar">Usar esta</button>
+          <?php endif; ?></td>
+        <td class="mono small"><?= e((string)$c['dominio']) ?></td>
+        <td><?php if (!(int)$c['ativo']): ?><span class="st st-pulado">pausado</span>
+          <?php elseif ($c['status'] === 'ok'): ?><span class="st st-ok">acompanhando</span>
+          <?php elseif ($c['status'] === 'buscando'): ?><span class="st st-rodando">procurando a marca</span>
+          <?php elseif ($c['status'] === 'nao_encontrado'): ?><span class="st st-pulado">não encontrado</span>
+          <?php else: ?><span class="st st-erro">erro</span><?php endif; ?>
+          <?php if ($c['erro']): ?><br><span class="small mut"><?= e($c['erro']) ?></span><?php endif; ?></td>
+        <td class="small"><?= e(data_br($c['ultima_coleta'], true) ?: 'ainda não') ?></td>
+        <td class="acoes">
+          <?php if (in_array($c['status'], ['nao_encontrado', 'erro'], true) && !$c['brand_id']): ?><button form="<?= $f ?>" class="btn btn-mini" name="acao" value="conc_buscar">Buscar de novo</button><?php endif; ?>
+          <button form="<?= $f ?>" class="btn btn-mini" name="acao" value="conc_pausar"><?= (int)$c['ativo'] ? 'Pausar' : 'Retomar' ?></button>
+          <button form="<?= $f ?>" class="btn btn-mini btn-perigo" name="acao" value="conc_apagar" onclick="return confirm('Remover este concorrente?')">Remover</button>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table></div>
+  <?php endif; ?>
+  <form method="post" class="linha-form">
+    <input type="hidden" name="csrf" value="<?= e(csrf()) ?>">
+    <input name="dominio" placeholder="dominio.com.br" required>
+    <input name="nome" placeholder="Nome (opcional)">
+    <button class="btn btn-pri" name="acao" value="conc_dominio">Adicionar concorrente</button>
+  </form>
+  <p class="mut small">Cada concorrente custa cerca de <?= e(Custos::usd((int)round(Config::int('CONCORRENTE_ADS', 20) * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000), 3)) ?> por dia (<?= Config::int('CONCORRENTE_ADS', 20) ?> anúncios), mais 1 dia de contagem de ativos. Achar a marca pelo domínio custa até <?= e(Custos::usd((int)round(Config::int('CONCORRENTE_CANDIDATOS', 3) * Config::float('PRECO_ITEM_USD', 0.0175) * 1_000_000), 3)) ?>, uma vez só. Máximo de <?= Config::int('MAX_CONCORRENTES', 10) ?> concorrentes.</p>
 </section>
 <?php layout_rodape();

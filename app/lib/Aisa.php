@@ -28,6 +28,20 @@ final class Aisa
         return self::chamarPago('analytics', 'GET', '/apis/v1/foreplay/brand/analytics', $p, null, $brandId, $diasEsperados);
     }
 
+    /** Marcas candidatas para um dominio (Foreplay getBrandsByDomain, max 10). */
+    public static function marcasPorDominio(string $dominio, int $limite, string $ref): array
+    {
+        $p = ['domain' => $dominio, 'limit' => $limite, 'order' => 'most_ranked'];
+        return self::chamarPago('concorrente', 'GET', '/apis/v1/foreplay/brand/getBrandsByDomain', $p, null, $ref, $limite);
+    }
+
+    /** Anuncios ativos de uma marca, os mais antigos primeiro (Foreplay getAdsByBrandId). */
+    public static function anunciosDaMarca(string $brandId, int $limite, string $ref): array
+    {
+        $p = ['brand_ids' => $brandId, 'live' => 'true', 'order' => 'longest_running', 'limit' => $limite];
+        return self::chamarPago('concorrente', 'GET', '/apis/v1/foreplay/brand/getAdsByBrandId', $p, null, $ref, $limite);
+    }
+
     /** Chat completions compativel com OpenAI. */
     public static function chat(array $corpo, string $ref): array
     {

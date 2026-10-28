@@ -133,8 +133,8 @@ function layout_topo(string $titulo, string $ativo = 'ofertas'): void
     <a class="marca" href="index.php"><span class="marca-ic" aria-hidden="true"></span>Raio-X <b>de Ofertas</b></a>
     <nav class="menu">
       <a href="index.php" class="<?= $ativo === 'ofertas' ? 'on' : '' ?>">Ofertas</a>
-      <span class="off" title="Em breve">Concorrentes <small>em breve</small></span>
       <?php if ($admin): ?>
+        <a href="concorrentes.php" class="<?= $ativo === 'concorrentes' ? 'on' : '' ?>">Concorrentes</a>
         <a href="admin.php" class="<?= $ativo === 'admin' ? 'on' : '' ?>">Painel</a>
         <a href="saude.php" class="<?= $ativo === 'saude' ? 'on' : '' ?>">Saúde</a>
       <?php endif; ?>

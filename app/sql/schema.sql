@@ -127,12 +127,18 @@ CREATE TABLE IF NOT EXISTS config (
   valor {TXT}
 );
 
--- Modo Concorrente/SaaS (futuro, ainda sem uso)
+-- Modo Concorrente: anunciantes que voce escolhe acompanhar todo dia (por dominio ou pela pagina da oferta)
 CREATE TABLE IF NOT EXISTS concorrentes (
   id {ID},
   nome {K},
   dominio {K},
   brand_id {K},
+  ad_library_id {K},
+  candidatos {TXT},
+  ativo INTEGER DEFAULT 1,
+  status {K},
+  erro {TXT},
+  ultima_coleta {K},
   criado_em {K}
 );
 

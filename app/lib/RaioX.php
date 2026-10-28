@@ -22,7 +22,7 @@ final class RaioX
             "SELECT a.ad_id FROM anunciantes m
              JOIN anuncios a ON a.ad_id = m.anuncio_principal
              LEFT JOIN raiox r ON r.ad_id = a.ad_id
-             WHERE m.ultimo_visto = ? AND (r.ad_id IS NULL OR r.hash_conteudo <> a.hash_conteudo)" . ($soInfo ? " AND m.tipo = 'info'" : '') . "
+             WHERE m.ultimo_visto = ? AND (r.ad_id IS NULL OR r.hash_conteudo <> a.hash_conteudo)" . ($soInfo ? " AND (m.tipo = 'info' OR m.brand_id IN (SELECT brand_id FROM concorrentes WHERE ativo = 1))" : '') . "
              ORDER BY a.dias_no_ar DESC LIMIT " . max(0, $limite),
             [date('Y-m-d')]
         ), 'ad_id');

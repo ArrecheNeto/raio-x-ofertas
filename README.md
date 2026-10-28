@@ -27,6 +27,8 @@ Valores reais observados na AIsa em outubro de 2026:
 | Cada anúncio coletado | US$ 0,0175 |
 | Cada dia de contagem de um anunciante | US$ 0,0175 |
 | Cada Raio-X com IA (modelo deepseek-v4.1-flash) | cerca de US$ 0,001 |
+| Cada concorrente acompanhado (20 anúncios + 1 dia de contagem) | cerca de US$ 0,37 por dia |
+| Achar a marca de um concorrente pelo domínio | até US$ 0,05, uma vez só |
 | Checagem de conta e saldo | grátis |
 
 Com 5 nichos de 20 anúncios e o top 20 com contagem: cerca de **US$ 2,10 por dia** e **US$ 63 por mês**. No primeiro dia é um pouco mais, porque busca 7 dias de histórico para cada anunciante novo no top. O teto diário (`DAILY_BUDGET_USD`) para tudo quando é atingido e registra no painel.
@@ -151,6 +153,7 @@ Isso roda de 15 em 15 minutos entre 6h e 9h45. Com 5 nichos, a coleta termina po
 - **Rodar agora:** continua a fila do dia.
 - **Fila de hoje:** o que já rodou, o que falta e o que deu erro. Tarefas com erro **não** são repetidas sozinhas; use **Tentar de novo**.
 - **Nichos:** adicionar, renomear, trocar o termo de busca, pausar ou remover.
+- **Concorrentes:** acompanhar anunciantes específicos. Veja o Modo Concorrente abaixo.
 - **Erros recentes e execuções:** quanto tempo cada rodada levou.
 
 ### Erros da AIsa
@@ -172,6 +175,9 @@ O robô nunca repete uma chamada paga sozinho e, ao receber 401, 402 ou 429, par
 | `BUSCA_EDUCACAO` | 1 faz uma segunda busca por nicho só com anúncios de educação (poucos itens, quase todos infoproduto); 0 desliga |
 | `ANALYTICS_TOP` | Quantos anunciantes recebem a contagem real por dia (padrão 20; 0 desliga) |
 | `ANALYTICS_BACKFILL_DAYS` | Dias de histórico na primeira vez que um anunciante entra no top (padrão 7) |
+| `MODO_CONCORRENTE` | 1 liga o Modo Concorrente; 0 desliga sem apagar a lista |
+| `CONCORRENTE_ADS` | Anúncios ativos buscados por concorrente por dia (padrão 20) |
+| `MAX_CONCORRENTES` | Quantos concorrentes podem ser cadastrados (padrão 10) |
 | `RAIOX_POR_DIA` | Máximo de Raio-X novos por dia (padrão 30) |
 | `AI_MODEL` | Modelo de IA da AIsa (padrão `deepseek-v4.1-flash`; reserva `gpt-4o-mini`) |
 | `SO_INFOPRODUTO` | 1 mostra só infoproduto; 0 mostra tudo |
@@ -214,12 +220,20 @@ app/               (vira raiox_app, fora da pasta pública)
   .env.example     modelo de configuração
   bootstrap.php
   cron/rodar.php   o que a Tarefa Cron executa
-  lib/             Aisa, Coletor, Analytics, Escala, RaioX, Fila, Robo, Custos, Db
+  lib/             Aisa, Coletor, Concorrente, Analytics, Escala, RaioX, Fila, Robo, Custos, Db
   sql/schema.sql   tabelas (SQLite e MySQL)
   data/            banco SQLite e lock (criado sozinho)
 scripts/gerar-zip.php
 ```
 
-## Modo Concorrente (futuro)
+## Modo Concorrente
 
-Já existe a tabela `concorrentes` e o item de menu desativado. A ideia é acompanhar anunciantes específicos pelo domínio usando `getBrandsByDomain` e `getAdsByBrandId` da AIsa. Ainda não está implementado.
+Serve para acompanhar todo dia anunciantes que você escolhe, como seus concorrentes diretos, mesmo que eles não apareçam na busca dos nichos.
+
+**Como adicionar:**
+- No painel, em **Concorrentes**, digite o domínio do site (ex.: `concorrente.com.br`) e clique em **Adicionar concorrente**. Na próxima execução o robô procura qual anunciante usa esse domínio. Se achar mais de um, você escolhe o certo na lista.
+- Ou abra qualquer oferta já coletada (logado no painel) e clique em **Acompanhar como concorrente**. Nesse caso não há busca paga, porque o anunciante já é conhecido.
+
+**O que o robô faz todo dia:** busca os anúncios ativos de cada concorrente (os que estão no ar há mais tempo primeiro), soma a contagem real de anúncios ativos e calcula ESCALANDO, ESTÁVEL ou CAINDO, como nas ofertas. O anúncio principal de cada concorrente também recebe o Raio-X com IA, mesmo que não seja infoproduto.
+
+**Onde ver:** no menu **Concorrentes** (só aparece logado). A lista é sua e não fica pública. O teto diário continua valendo para tudo.

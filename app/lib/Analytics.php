@@ -9,7 +9,7 @@ final class Analytics
     {
         $n = max(0, Config::int('ANALYTICS_TOP', 20));
         if ($n === 0) {
-            return [];
+            return Concorrente::marcasParaAnalytics();
         }
         $soInfo = Config::int('SO_INFOPRODUTO', 1) === 1;
         $sql = "SELECT v.brand_id, COUNT(*) AS vistos, MAX(a.dias_no_ar) AS dias
@@ -28,7 +28,12 @@ final class Analytics
                 $marcas[] = $l['brand_id'];
             }
         }
-        return array_slice($marcas, 0, $n);
+        // Concorrentes sempre entram, na frente e fora da conta do top.
+        $fixos = array_values(array_filter(Concorrente::marcasParaAnalytics(), function ($b) use ($limite30) {
+            $sem = Db::getConfig('sem_analytics_' . $b);
+            return $sem === null || $sem < $limite30;
+        }));
+        return array_values(array_unique(array_merge($fixos, array_slice(array_diff($marcas, $fixos), 0, $n))));
     }
 
     public static function atualizarMarca(string $brandId): array
@@ -50,7 +55,8 @@ final class Analytics
             return ['ok' => false, 'teto' => true, 'erro' => 'Teto diario atingido antes do analytics.'];
         }
 
-        $r = Aisa::analyticsMarca($brandId, $inicio, $fim, $dias);
+        // Para concorrente achado pelo dominio usa o page_id (ad_library_id), que e o que a doc pede.
+        $r = Aisa::analyticsMarca(Concorrente::pageIdDe($brandId) ?? $brandId, $inicio, $fim, $dias);
         if (!$r['ok']) {
             return ['ok' => false, 'erro' => $r['erro'], 'http' => $r['http']];
         }

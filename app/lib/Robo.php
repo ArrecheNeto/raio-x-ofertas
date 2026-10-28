@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Orquestra o dia em 3 fases pela fila: coleta por nicho, analytics dos maiores anunciantes, Raio-X com IA.
+ * Orquestra o dia em 3 fases pela fila: coleta por nicho e dos concorrentes, analytics dos maiores anunciantes, Raio-X com IA.
  * Cada execucao trabalha por poucos segundos e termina; a proxima continua de onde parou.
  */
 final class Robo
@@ -49,6 +49,7 @@ final class Robo
                 foreach (Db::all('SELECT id FROM nichos WHERE ativo = 1 ORDER BY id') as $n) {
                     Fila::adicionar('coleta', (string)$n['id']);
                 }
+                Concorrente::enfileirarDia();
                 Db::setConfig('fase1_' . $hoje, date('H:i:s'));
                 $log[] = 'Fila do dia criada.';
             }
@@ -56,7 +57,7 @@ final class Robo
             while (microtime(true) - $inicio < $tempoMax) {
                 $job = Fila::proximo();
                 if ($job === null) {
-                    if (Fila::pendentes('coleta') === 0 && !Db::getConfig('fase2_' . $hoje)) {
+                    if (Fila::pendentes('coleta') + Fila::pendentes('concorrente_busca') + Fila::pendentes('concorrente') === 0 && !Db::getConfig('fase2_' . $hoje)) {
                         Escala::recalcularTodos();
                         foreach (Analytics::escolherTop() as $b) {
                             Fila::adicionar('analytics', $b);
@@ -77,14 +78,15 @@ final class Robo
                     }
                     break;
                 }
-                if ($job['tipo'] === 'coleta' && $coletas >= $maxColetas) {
+                $ehColeta = in_array($job['tipo'], ['coleta', 'concorrente_busca', 'concorrente'], true);
+                if ($ehColeta && $coletas >= $maxColetas) {
                     break;
                 }
 
                 Fila::marcar((int)$job['id'], 'rodando');
                 $res = self::executar($job);
                 $jobs++;
-                if ($job['tipo'] === 'coleta') {
+                if ($ehColeta) {
                     $coletas++;
                 }
 
@@ -131,6 +133,10 @@ final class Robo
                 case 'coleta':
                     $n = Db::one('SELECT * FROM nichos WHERE id = ?', [(int)$job['ref']]);
                     return $n ? Coletor::coletarNicho($n) : ['ok' => true, 'pulado' => 'nicho removido'];
+                case 'concorrente_busca':
+                    return Concorrente::buscarMarca((int)$job['ref']);
+                case 'concorrente':
+                    return Concorrente::coletar((int)$job['ref']);
                 case 'analytics':
                     return Analytics::atualizarMarca($job['ref']);
                 case 'raiox':

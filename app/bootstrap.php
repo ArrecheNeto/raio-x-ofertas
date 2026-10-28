@@ -13,6 +13,7 @@ require __DIR__ . '/lib/Coletor.php';
 require __DIR__ . '/lib/Analytics.php';
 require __DIR__ . '/lib/Escala.php';
 require __DIR__ . '/lib/RaioX.php';
+require __DIR__ . '/lib/Concorrente.php';
 require __DIR__ . '/lib/Robo.php';
 require __DIR__ . '/lib/Helpers.php';
 

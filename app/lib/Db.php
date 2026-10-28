@@ -54,7 +54,25 @@ final class Db
                 }
             }
         }
+        // Bancos criados antes de uma coluna existir: CREATE TABLE IF NOT EXISTS nao adiciona colunas.
+        foreach (self::COLUNAS_NOVAS as $tabela => $colunas) {
+            $existentes = self::$driver === 'mysql'
+                ? array_column(self::$pdo->query("SHOW COLUMNS FROM $tabela")->fetchAll(), 'Field')
+                : array_column(self::$pdo->query("PRAGMA table_info($tabela)")->fetchAll(), 'name');
+            foreach ($colunas as $col => $tipo) {
+                if (!in_array($col, $existentes, true)) {
+                    self::$pdo->exec("ALTER TABLE $tabela ADD COLUMN $col " . strtr($tipo, $troca));
+                }
+            }
+        }
     }
+
+    private const COLUNAS_NOVAS = [
+        'concorrentes' => [
+            'ad_library_id' => '{K}', 'candidatos' => '{TXT}', 'ativo' => 'INTEGER DEFAULT 1',
+            'status' => '{K}', 'erro' => '{TXT}', 'ultima_coleta' => '{K}',
+        ],
+    ];
 
     public static function q(string $sql, array $p = []): PDOStatement
     {

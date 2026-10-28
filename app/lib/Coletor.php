@@ -61,8 +61,8 @@ final class Coletor
         return ['ok' => true, 'recebidos' => count($dados), 'unicos' => count($vistosAgora), 'novos' => $novos, 'micros' => $micros];
     }
 
-    /** Retorna true se o anuncio e novo no banco. */
-    public static function salvarAnuncio(array $ad, int $nichoId, string $hoje): bool
+    /** Retorna true se o anuncio e novo no banco. Sem nicho (concorrente), mantem o nicho que ja estava gravado. */
+    public static function salvarAnuncio(array $ad, ?int $nichoId, string $hoje): bool
     {
         $adId = (string)($ad['ad_id'] ?? $ad['id']);
         $brandId = (string)($ad['brand_id'] ?? ('sem-marca-' . $adId));
@@ -75,14 +75,14 @@ final class Coletor
         $iniciou = isset($ad['started_running']) ? date('Y-m-d', (int)($ad['started_running'] / 1000)) : null;
         $dias = (int)($ad['running_duration']['days'] ?? 0);
 
-        $existe = Db::one('SELECT ad_id, primeiro_visto FROM anuncios WHERE ad_id = ?', [$adId]);
+        $existe = Db::one('SELECT ad_id, primeiro_visto, nicho_id FROM anuncios WHERE ad_id = ?', [$adId]);
 
         Db::upsert('anuncios', [
             'ad_id' => $adId,
             'fp_id' => (string)($ad['id'] ?? ''),
             'brand_id' => $brandId,
-            'nicho_id' => $nichoId,
-            'nome' => (string)($ad['name'] ?? ''),
+            'nicho_id' => $nichoId ?? ($existe['nicho_id'] ?? null),
+            'nome' => (string)($ad['name'] ?? $ad['brand_name'] ?? ''),
             'headline' => $headline,
             'descricao' => $descricao,
             'transcricao' => $transcricao,
@@ -107,12 +107,12 @@ final class Coletor
 
         Db::upsert('vistos', ['data' => $hoje, 'ad_id' => $adId, 'brand_id' => $brandId], ['data', 'ad_id'], []);
 
-        $marca = Db::one('SELECT brand_id, primeiro_visto, tipo FROM anunciantes WHERE brand_id = ?', [$brandId]);
+        $marca = Db::one('SELECT brand_id, primeiro_visto, tipo, nicho_id FROM anunciantes WHERE brand_id = ?', [$brandId]);
         Db::upsert('anunciantes', [
             'brand_id' => $brandId,
-            'nome' => (string)($ad['name'] ?? ''),
+            'nome' => (string)($ad['name'] ?? $ad['brand_name'] ?? ''),
             'avatar' => (string)($ad['avatar'] ?? ''),
-            'nicho_id' => $nichoId,
+            'nicho_id' => $nichoId ?? ($marca['nicho_id'] ?? null),
             'tipo' => ($marca['tipo'] ?? '') === 'info' ? 'info' : $tipo,
             'primeiro_visto' => $marca['primeiro_visto'] ?? $hoje,
             'ultimo_visto' => $hoje,
