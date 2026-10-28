@@ -103,6 +103,10 @@ final class Aisa
                 return strlen($linha);
             },
         ]);
+        $ca = Config::str('CURL_CA_BUNDLE');
+        if ($ca !== '' && is_file($ca)) {
+            curl_setopt($ch, CURLOPT_CAINFO, $ca);
+        }
         if ($corpo !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($corpo, JSON_UNESCAPED_UNICODE));
         }

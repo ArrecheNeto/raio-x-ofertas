@@ -27,7 +27,9 @@ final class Config
 
     public static function str(string $k, string $padrao = ''): string
     {
-        $v = self::$vals[$k] ?? getenv($k);
+        // Variavel de ambiente vence o .env (util para testes pontuais).
+        $env = getenv($k);
+        $v = ($env !== false && $env !== '') ? $env : (self::$vals[$k] ?? null);
         return ($v === false || $v === null || $v === '') ? $padrao : (string)$v;
     }
 

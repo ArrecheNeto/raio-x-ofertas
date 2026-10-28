@@ -19,8 +19,16 @@ final class Analytics
                 WHERE v.data = ? AND v.brand_id NOT LIKE 'sem-marca-%'" . ($soInfo ? " AND m.tipo = 'info'" : '') . "
                 GROUP BY v.brand_id
                 ORDER BY vistos DESC, dias DESC
-                LIMIT " . $n;
-        return array_column(Db::all($sql, [date('Y-m-d')]), 'brand_id');
+                LIMIT " . ($n * 2);
+        $limite30 = date('Y-m-d', strtotime('-30 days'));
+        $marcas = [];
+        foreach (Db::all($sql, [date('Y-m-d')]) as $l) {
+            $sem = Db::getConfig('sem_analytics_' . $l['brand_id']);
+            if ($sem === null || $sem < $limite30) {
+                $marcas[] = $l['brand_id'];
+            }
+        }
+        return array_slice($marcas, 0, $n);
     }
 
     public static function atualizarMarca(string $brandId): array
@@ -46,10 +54,13 @@ final class Analytics
         if (!$r['ok']) {
             return ['ok' => false, 'erro' => $r['erro'], 'http' => $r['http']];
         }
-        foreach ($r['json']['data'] ?? [] as $linha) {
-            if (empty($linha['date'])) {
-                continue;
-            }
+        $linhas = array_filter($r['json']['data'] ?? [], fn($l) => !empty($l['date']));
+        // Serie toda zerada com anuncios ativos vistos = o provedor nao acompanha esta marca. Nao salva e nao paga de novo.
+        if ($linhas && !array_filter($linhas, fn($l) => (int)($l['active_count'] ?? 0) > 0)) {
+            Db::setConfig('sem_analytics_' . $brandId, date('Y-m-d'));
+            return ['ok' => true, 'linhas' => count($linhas), 'pulado' => 'contagem zerada, usando anuncios vistos', 'micros' => $r['micros']];
+        }
+        foreach ($linhas as $linha) {
             Db::upsert('analytics', [
                 'brand_id' => $brandId,
                 'data' => substr((string)$linha['date'], 0, 10),
